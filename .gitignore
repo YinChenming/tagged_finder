@@ -1,54 +1,63 @@
-# C++ objects and libs
-*.slo
-*.lo
-*.o
-*.a
-*.la
-*.lai
-*.so
-*.so.*
-*.dll
-*.dylib
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Qt-es
-object_script.*.Release
-object_script.*.Debug
-*_plugin_import.cpp
-/.qmake.cache
-/.qmake.stash
-*.pro.user
-*.pro.user.*
-*.qbs.user
-*.qbs.user.*
-*.moc
-moc_*.cpp
-moc_*.h
-qrc_*.cpp
-ui_*.h
-*.qmlc
-*.jsc
-Makefile*
-*build-*
-*.qm
-*.prl
+# Dependencies
+node_modules
+.pnp
+.pnp.js
 
-# Qt unit tests
-target_wrapper.*
+# Build outputs
+dist
+dist-ssr
+*.local
+out
 
-# QtCreator
-*.autosave
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
-# QtCreator Qml
-*.qmlproject.user
-*.qmlproject.user.*
+# Environment variables
+.env
+.env.local
+.env.*.local
 
-# QtCreator CMake
-CMakeLists.txt.user*
+# OS generated files
+Thumbs.db
+.DS_Store
 
-# QtCreator 4.8< compilation database
-compile_commands.json
+# Database files
+*.db
+*.sqlite
 
-# QtCreator local machine specific files for imported projects
-*creator.user*
+# Coverage directory
+coverage
+*.lcov
 
-*_qmlcache.qrc
+# Temporary files
+*.tmp
+*.temp
+.cache
+
+# Electron build files
+electron-builder.yml
+out/
+
+# Package lock files (optional, uncomment if needed)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+.vscode/
