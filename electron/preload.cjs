@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-// 向渲染进程暴露安全的API
+// 暴露API到渲染进程
 contextBridge.exposeInMainWorld('electronAPI', {
   // 目录选择和索引相关
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
@@ -9,24 +9,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
   unwatchDirectory: (directoryPath) => ipcRenderer.invoke('unwatch-directory', directoryPath),
   getWatchedDirectories: () => ipcRenderer.invoke('get-watched-directories'),
   addDirectory: (directoryPath) => ipcRenderer.invoke('add-directory', directoryPath),
-  // 添加toggleDirectory方法以匹配前端调用
   toggleDirectory: (directoryId) => ipcRenderer.invoke('toggle-directory', directoryId),
-  // 添加scanDirectory方法以匹配前端调用
   scanDirectory: (directoryId) => ipcRenderer.invoke('scan-directory', directoryId),
 
   // 文件相关操作
   getAllFiles: () => ipcRenderer.invoke('get-all-files'),
+  getFilesCount: (tagId) => ipcRenderer.invoke('get-files-count', tagId),
   openFile: (filePath) => ipcRenderer.invoke('open-file', filePath),
+  getFileTags: (fileId) => ipcRenderer.invoke('get-file-tags', fileId),
 
   // 标签相关操作
-  addTag: (tagInfo) => ipcRenderer.invoke('add-tag', tagInfo),
-  // 添加createTag方法以匹配前端调用
-  createTag: (tagInfo) => ipcRenderer.invoke('add-tag', tagInfo),
-  // 添加deleteTag方法以匹配前端调用
-  deleteTag: (tagId) => ipcRenderer.invoke('delete-tag', tagId),
   getAllTags: () => ipcRenderer.invoke('get-all-tags'),
+  addTag: (tagInfo) => ipcRenderer.invoke('add-tag', tagInfo),
+  updateTag: (tagInfo) => ipcRenderer.invoke('update-tag', tagInfo),
+  deleteTag: (tagId) => ipcRenderer.invoke('delete-tag', tagId),
   tagFile: (fileTagInfo) => ipcRenderer.invoke('tag-file', fileTagInfo),
   getFilesByTag: (tagId) => ipcRenderer.invoke('get-files-by-tag', tagId),
+  isFileTagged: (fileTagInfo) => ipcRenderer.invoke('is-file-tagged', fileTagInfo),
 
   // 设置相关操作
   getSettings: () => ipcRenderer.invoke('get-settings'),
@@ -42,7 +41,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sendMessage: (message) => ipcRenderer.send('message', message),
   onMessageReply: (callback) => ipcRenderer.on('message-reply', (event, ...args) => callback(...args)),
 
-  // 从主进程接收通知 - 修正函数名以匹配前端期望
+  // 从主进程接收通知
   onDirectoryStatusChange: (callback) => {
     const listener = (event, ...args) => callback(...args);
     ipcRenderer.on('directory-status-changed', listener);

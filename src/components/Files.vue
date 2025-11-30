@@ -195,6 +195,7 @@ const loadFiles = async () => {
     const response = await window.electronAPI.getAllFiles();
     if (response.success) {
       files.value = response.files;
+      await loadAllFileTags(); // 加载文件后更新所有文件标签
     }
   } catch (error) {
     console.error('加载文件失败:', error);
@@ -212,10 +213,38 @@ const loadTags = async () => {
   }
 };
 
+// 存储文件标签映射的响应式数据
+const fileTagsMap = ref({});
+
+// 获取文件的标签
 const getFileTags = (fileId) => {
-  // 这里应该从数据库获取文件的标签
-  // 目前返回模拟数据
-  return [];
+  return fileTagsMap.value[fileId] || [];
+};
+
+// 加载单个文件的标签
+const loadFileTags = async (fileId) => {
+  try {
+    const response = await window.electronAPI.getFileTags(fileId);
+    if (response.success) {
+      fileTagsMap.value[fileId] = response.tags;
+    }
+  } catch (error) {
+    console.error(`加载文件${fileId}的标签失败:`, error);
+  }
+};
+
+// 加载所有文件的标签
+const loadAllFileTags = async () => {
+  try {
+    const tagsMap = {};
+    for (const file of files.value) {
+      const response = await window.electronAPI.getFileTags(file.id);
+      tagsMap[file.id] = response.success ? response.tags : [];
+    }
+    fileTagsMap.value = tagsMap;
+  } catch (error) {
+    console.error('加载所有文件标签失败:', error);
+  }
 };
 
 const openFile = async (filePath) => {
@@ -239,9 +268,20 @@ const closeInfoDialog = () => {
   selectedFile.value = {};
 };
 
-const showAddTagDialog = (fileId) => {
+const showAddTagDialog = async (fileId) => {
   currentFileId.value = fileId;
   selectedTags.value = [];
+  
+  // 加载文件已有的标签，自动选中
+  try {
+    const response = await window.electronAPI.getFileTags(fileId);
+    if (response.success) {
+      selectedTags.value = response.tags.map(tag => tag.id);
+    }
+  } catch (error) {
+    console.error(`加载文件${fileId}的标签失败:`, error);
+  }
+  
   showTagDialog.value = true;
 };
 
@@ -262,14 +302,23 @@ const toggleTag = (tagId) => {
 
 const applyTags = async () => {
   try {
-    for (const tagId of selectedTags.value) {
+    // 首先获取文件当前已有的标签
+    const currentTagsResponse = await window.electronAPI.getFileTags(currentFileId.value);
+    const currentTagIds = currentTagsResponse.success ? currentTagsResponse.tags.map(t => t.id) : [];
+    
+    // 找出需要添加的标签（选中但当前没有的）
+    const tagsToAdd = selectedTags.value.filter(tagId => !currentTagIds.includes(tagId));
+    
+    // 添加新标签
+    for (const tagId of tagsToAdd) {
       await window.electronAPI.tagFile({ 
         fileId: currentFileId.value, 
         tagId 
       });
     }
+    
     closeTagDialog();
-    await loadFiles(); // 重新加载文件以更新标签
+    await loadFileTags(currentFileId.value); // 更新当前文件的标签
   } catch (error) {
     console.error('应用标签失败:', error);
   }

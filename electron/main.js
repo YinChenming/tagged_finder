@@ -226,6 +226,19 @@ function registerIpcHandlers() {
     }
   });
 
+  // 更新标签
+  ipcMain.handle('update-tag', async (event, tagInfo) => {
+    try {
+      // 只提取需要的字段，避免传递无法序列化的对象
+      const { id, name, color } = tagInfo;
+      const updatedTag = dbManager.updateTag(id, name, color);
+      return { success: true, tag: updatedTag };
+    } catch (error) {
+      console.error('更新标签失败:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
   // 删除标签IPC处理程序
   ipcMain.handle('delete-tag', async (event, tagId) => {
     try {
@@ -241,6 +254,33 @@ function registerIpcHandlers() {
   ipcMain.handle('get-all-tags', () => {
     try {
       return { success: true, tags: dbManager.getAllTags() };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('get-files-count', async (event, tagId) => {
+    try {
+      const count = dbManager.getFilesCount(tagId);
+      return { success: true, count };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('get-file-tags', async (event, fileId) => {
+    try {
+      const tags = dbManager.getFileTags(fileId);
+      return { success: true, tags };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('is-file-tagged', async (event, { fileId, tagId }) => {
+    try {
+      const isTagged = dbManager.isFileTagged(fileId, tagId);
+      return { success: true, isTagged };
     } catch (error) {
       return { success: false, error: error.message };
     }

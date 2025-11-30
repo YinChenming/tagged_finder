@@ -101,13 +101,20 @@ body {
   overflow: hidden;
 }
 
-/* 标题栏 */
+/* 标题栏 - 固定在顶部 */
 .app-header {
   background-color: #2c3e50;
   color: white;
   padding: 1rem 2rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   z-index: 100;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 70px;
+  display: flex;
+  align-items: center;
 }
 
 .app-header h1 {
@@ -115,19 +122,28 @@ body {
   font-weight: 600;
 }
 
-/* 主要内容区域 */
+/* 主要内容区域 - 固定在顶部和底部之间 */
 .main-content {
   display: flex;
-  flex: 1;
+  position: fixed;
+  top: 70px; /* 与标题栏高度相同 */
+  bottom: 45px; /* 与页脚高度相同 */
+  left: 0;
+  right: 0;
   overflow: hidden;
 }
 
-/* 侧边栏 */
+/* 侧边栏 - 固定在左侧 */
 .sidebar {
   background-color: #ffffff;
   width: 240px;
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
   z-index: 50;
+  position: fixed;
+  left: 0;
+  top: 70px;
+  bottom: 45px;
+  overflow-y: auto;
 }
 
 .nav-menu {
@@ -160,21 +176,34 @@ body {
   font-size: 1rem;
 }
 
-/* 内容区域 */
+/* 内容区域 - 固定在侧边栏右侧，可滚动 */
 .content-area {
   flex: 1;
   padding: 2rem;
   overflow-y: auto;
   background-color: #fafafa;
+  position: fixed;
+  left: 240px;
+  top: 70px;
+  right: 0;
+  bottom: 45px;
 }
 
-/* 页脚 */
+/* 页脚 - 固定在底部 */
 .app-footer {
   background-color: #2c3e50;
   color: white;
   padding: 0.75rem 2rem;
   text-align: center;
   font-size: 0.875rem;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 45px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* 过渡动画 */
@@ -194,6 +223,12 @@ body {
     width: 60px;
   }
 
+  /* 响应式内容区域 */
+  .content-area {
+    left: 60px;
+    padding: 1rem;
+  }
+
   .nav-label {
     display: none;
   }
@@ -205,10 +240,6 @@ body {
 
   .nav-icon {
     margin-right: 0;
-  }
-
-  .content-area {
-    padding: 1rem;
   }
 }
 </style>

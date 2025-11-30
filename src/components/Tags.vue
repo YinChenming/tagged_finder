@@ -1,28 +1,28 @@
 <template>
   <div class="tags-container">
     <h2>标签管理</h2>
-    
+
     <!-- 添加新标签 -->
     <div class="add-tag-container">
-      <input 
-        type="text" 
-        v-model="newTagName" 
+      <input
+        type="text"
+        v-model="newTagName"
         placeholder="输入新标签名称..."
         class="tag-input"
       />
-      <input 
-        type="color" 
-        v-model="newTagColor" 
+      <input
+        type="color"
+        v-model="newTagColor"
         class="color-picker"
       />
       <button class="add-tag-btn" @click="addNewTag">添加标签</button>
     </div>
-    
+
     <!-- 标签列表 -->
     <div class="tags-grid">
-      <div 
-        v-for="tag in tags" 
-        :key="tag.id" 
+      <div
+        v-for="tag in tags"
+        :key="tag.id"
         class="tag-card"
         :style="{ borderLeftColor: tag.color }"
       >
@@ -39,14 +39,14 @@
           <button class="delete-btn" @click="confirmDelete(tag)">删除</button>
         </div>
       </div>
-      
+
       <!-- 空状态 -->
       <div v-if="tags.length === 0" class="empty-state">
         <div class="empty-icon">🏷️</div>
         <p>暂无标签，请创建第一个标签</p>
       </div>
     </div>
-    
+
     <!-- 按标签筛选的文件列表 -->
     <div v-if="activeTag" class="tagged-files-container">
       <div class="tagged-files-header">
@@ -54,9 +54,9 @@
         <button class="close-btn" @click="closeTaggedFiles">✕</button>
       </div>
       <div class="tagged-files-list">
-        <div 
-          v-for="file in taggedFiles" 
-          :key="file.id" 
+        <div
+          v-for="file in taggedFiles"
+          :key="file.id"
           class="file-card"
           @click="openFile(file.path)"
         >
@@ -70,13 +70,13 @@
             </div>
           </div>
         </div>
-        
+
         <div v-if="taggedFiles.length === 0" class="no-files">
           <p>此标签下暂无文件</p>
         </div>
       </div>
     </div>
-    
+
     <!-- 编辑标签对话框 -->
     <div v-if="showEditDialog" class="dialog-overlay" @click.self="closeEditDialog">
       <div class="dialog">
@@ -87,17 +87,17 @@
         <div class="dialog-content">
           <div class="form-group">
             <label>标签名称</label>
-            <input 
-              type="text" 
-              v-model="editingTag.name" 
+            <input
+              type="text"
+              v-model="editingTag.name"
               class="form-input"
             />
           </div>
           <div class="form-group">
             <label>标签颜色</label>
-            <input 
-              type="color" 
-              v-model="editingTag.color" 
+            <input
+              type="color"
+              v-model="editingTag.color"
               class="color-picker-large"
             />
           </div>
@@ -108,7 +108,7 @@
         </div>
       </div>
     </div>
-    
+
     <!-- 删除确认对话框 -->
     <div v-if="showDeleteConfirm" class="dialog-overlay" @click.self="cancelDelete">
       <div class="dialog">
@@ -129,9 +129,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 
-// 状态数据
+// 状态管理
 const tags = ref([]);
 const newTagName = ref('');
 const newTagColor = ref('#4CAF50');
@@ -141,6 +141,7 @@ const showDeleteConfirm = ref(false);
 const tagToDelete = ref(null);
 const activeTag = ref(null);
 const taggedFiles = ref([]);
+const tagFileCounts = ref({}); // 存储标签文件数量的响应式数据
 
 // 方法
 const loadTags = async () => {
@@ -148,10 +149,30 @@ const loadTags = async () => {
     const response = await window.electronAPI.getAllTags();
     if (response.success) {
       tags.value = response.tags;
+      await updateTagFileCounts(); // 加载标签后更新文件数量
     }
   } catch (error) {
     console.error('加载标签失败:', error);
   }
+};
+
+// 更新所有标签的文件数量
+const updateTagFileCounts = async () => {
+  try {
+    const counts = {};
+    for (const tag of tags.value) {
+      const response = await window.electronAPI.getFilesCount(tag.id);
+      counts[tag.id] = response.success ? response.count : 0;
+    }
+    tagFileCounts.value = counts;
+  } catch (error) {
+    console.error('更新标签文件数量失败:', error);
+  }
+};
+
+// 获取标签的文件数量
+const getFilesCount = (tagId) => {
+  return tagFileCounts.value[tagId] || 0;
 };
 
 const addNewTag = async () => {
@@ -159,17 +180,18 @@ const addNewTag = async () => {
     alert('请输入标签名称');
     return;
   }
-  
+
   try {
     const response = await window.electronAPI.createTag({
       name: newTagName.value.trim(),
       color: newTagColor.value
     });
-    
+
     if (response.success) {
       tags.value.push(response.tag);
       newTagName.value = '';
       newTagColor.value = '#4CAF50';
+      await updateTagFileCounts(); // 添加标签后更新文件数量
     }
   } catch (error) {
     console.error('添加标签失败:', error);
@@ -191,15 +213,23 @@ const saveTagChanges = async () => {
     alert('请输入标签名称');
     return;
   }
-  
+
   try {
-    const response = await window.electronAPI.updateTag(editingTag.value);
+    // 只传递必要的字段，避免传递整个Vue响应式对象
+    const tagUpdateData = {
+      id: editingTag.value.id,
+      name: editingTag.value.name.trim(),
+      color: editingTag.value.color
+    };
+
+    const response = await window.electronAPI.updateTag(tagUpdateData);
     if (response.success) {
       const index = tags.value.findIndex(t => t.id === editingTag.value.id);
       if (index > -1) {
         tags.value[index] = response.tag;
       }
       closeEditDialog();
+      // 更新标签名称或颜色不影响文件数量，不需要调用updateTagFileCounts
     }
   } catch (error) {
     console.error('更新标签失败:', error);
@@ -222,6 +252,7 @@ const deleteTag = async () => {
     if (response.success) {
       tags.value = tags.value.filter(t => t.id !== tagToDelete.value.id);
       cancelDelete();
+      await updateTagFileCounts(); // 删除标签后更新文件数量
     }
   } catch (error) {
     console.error('删除标签失败:', error);
@@ -253,13 +284,7 @@ const openFile = async (filePath) => {
   }
 };
 
-// 工具函数
-const getFilesCount = (tagId) => {
-  // 这里应该从数据库获取与标签关联的文件数量
-  // 目前返回模拟数据
-  const counts = [3, 5, 1, 7, 2, 9];
-  return counts[tagId % counts.length];
-};
+// 工具函数已移至前面
 
 const formatDate = (timestamp) => {
   if (!timestamp) return '';
@@ -673,20 +698,20 @@ h2 {
   .add-tag-container {
     flex-direction: column;
   }
-  
+
   .tag-input {
     width: 100%;
   }
-  
+
   .tags-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .file-card {
     flex-direction: column;
     text-align: center;
   }
-  
+
   .file-icon {
     margin-right: 0;
     margin-bottom: 1rem;

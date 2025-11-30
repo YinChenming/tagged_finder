@@ -233,9 +233,51 @@ class DatabaseManager {
   }
 
   // 删除标签
-  deleteTag(tagId) {
+  deleteTag(id) {
     const stmt = this.db.prepare('DELETE FROM tags WHERE id = ?');
-    return stmt.run(tagId);
+    return stmt.run(id);
+  }
+
+  // 更新标签
+  updateTag(id, name, color) {
+    try {
+      const stmt = this.db.prepare(
+        'UPDATE tags SET name = ?, color = ? WHERE id = ?'
+      );
+      const result = stmt.run(name, color, id);
+
+      // 返回更新后的标签信息
+      const getStmt = this.db.prepare('SELECT * FROM tags WHERE id = ?');
+      return getStmt.get(id);
+    } catch (error) {
+      console.error('更新标签失败:', error);
+      throw error;
+    }
+  }
+
+  // 获取标签关联的文件数量
+  getFilesCount(tagId) {
+    const stmt = this.db.prepare('SELECT COUNT(*) as count FROM file_tags WHERE tag_id = ?');
+    const result = stmt.get(tagId);
+    return result.count || 0;
+  }
+
+  // 获取文件关联的标签
+  getFileTags(fileId) {
+    const stmt = this.db.prepare(`
+      SELECT t.id, t.name, t.color
+      FROM tags t
+      JOIN file_tags ft ON t.id = ft.tag_id
+      WHERE ft.file_id = ?
+    `);
+    return stmt.all(fileId);
+  }
+
+  // 获取文件是否已被标记
+  isFileTagged(fileId, tagId) {
+    const stmt = this.db.prepare('SELECT * FROM file_tags WHERE file_id = ? AND tag_id = ?');
+    const result = stmt.get(fileId, tagId);
+    return result !== undefined;
   }
 
   // 文件标签关联操作
