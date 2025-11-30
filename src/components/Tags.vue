@@ -2,26 +2,60 @@
   <div class="tags-container">
     <h2>标签管理</h2>
 
-    <!-- 添加新标签 -->
-    <div class="add-tag-container">
-      <input
-        type="text"
-        v-model="newTagName"
-        placeholder="输入新标签名称..."
-        class="tag-input"
-      />
-      <input
-        type="color"
-        v-model="newTagColor"
-        class="color-picker"
-      />
-      <button class="add-tag-btn" @click="addNewTag">添加标签</button>
+    <!-- 标签搜索与添加 -->
+    <div class="tag-controls">
+      <div class="search-box">
+        <input
+          type="text"
+          v-model="searchQuery"
+          placeholder="搜索标签..."
+          class="search-input"
+        />
+      </div>
+      
+      <div class="add-tag-container">
+        <input
+          type="text"
+          v-model="newTagName"
+          placeholder="输入新标签名称..."
+          class="tag-input"
+        />
+        <div class="color-picker-wrapper" @click.stop="showColorPalette = !showColorPalette">
+          <div class="color-preview" :style="{ backgroundColor: newTagColor }"></div>
+          <div v-if="showColorPalette" class="color-palette-dropdown" @click.stop>
+            <div v-for="(palette, index) in presetPalettes" :key="index" class="palette-row">
+              <div 
+                v-for="color in palette" 
+                :key="color" 
+                class="color-swatch" 
+                :style="{ backgroundColor: color }"
+                @click="selectColor(color)"
+                :class="{ active: newTagColor === color }"
+              ></div>
+            </div>
+            
+            <div class="custom-color-row">
+              <button class="custom-color-btn" @click="triggerCustomPicker">
+                自定义颜色
+              </button>
+              <input 
+                type="color" 
+                ref="customColorInput" 
+                @input="handleCustomColor"
+                @change="showColorPalette = false"
+                style="visibility: hidden; position: absolute; width: 0; height: 0;"
+              />
+            </div>
+          </div>
+        </div>
+        <button class="add-tag-btn" @click="addNewTag">添加标签</button>
+      </div>
     </div>
 
     <!-- 标签列表 -->
     <div class="tags-grid">
       <div
-        v-for="tag in tags"
+        v-for="tag in filteredTags"
         :key="tag.id"
         class="tag-card"
         :style="{ borderLeftColor: tag.color }"
@@ -133,8 +167,10 @@ import { ref, onMounted, computed } from 'vue';
 
 // 状态管理
 const tags = ref([]);
+const searchQuery = ref('');
 const newTagName = ref('');
 const newTagColor = ref('#4CAF50');
+const showColorPalette = ref(false);
 const showEditDialog = ref(false);
 const editingTag = ref({});
 const showDeleteConfirm = ref(false);
@@ -142,6 +178,77 @@ const tagToDelete = ref(null);
 const activeTag = ref(null);
 const taggedFiles = ref([]);
 const tagFileCounts = ref({}); // 存储标签文件数量的响应式数据
+const customColorInput = ref(null);
+
+// 预设色板生成
+const generatePalette = (baseRgb, count) => {
+  const [r, g, b] = baseRgb;
+  const colors = [];
+  const step = 0.6 / Math.floor(count / 2); // 调整亮度/饱和度步长
+  
+  // 生成比基准色浅的颜色
+  for (let i = Math.floor(count / 2); i > 0; i--) {
+    const factor = 1 + (i * step);
+    const nr = Math.min(255, Math.round(r * factor + (255 - r) * (i * 0.1)));
+    const ng = Math.min(255, Math.round(g * factor + (255 - g) * (i * 0.1)));
+    const nb = Math.min(255, Math.round(b * factor + (255 - b) * (i * 0.1)));
+    colors.push(`rgb(${nr}, ${ng}, ${nb})`);
+  }
+  
+  // 基准色
+  colors.push(`rgb(${r}, ${g}, ${b})`);
+  
+  // 生成比基准色深的颜色
+  for (let i = 1; i <= Math.floor(count / 2); i++) {
+    const factor = 1 - (i * step * 0.8);
+    const nr = Math.round(r * factor);
+    const ng = Math.round(g * factor);
+    const nb = Math.round(b * factor);
+    colors.push(`rgb(${nr}, ${ng}, ${nb})`);
+  }
+  
+  return colors;
+};
+
+const presetPalettes = [
+  generatePalette([0, 0, 0], 5),       // Black
+  generatePalette([0, 255, 255], 5),   // Cyan
+  generatePalette([0, 255, 127], 5),   // SpringGreen
+  generatePalette([255, 69, 0], 5),    // OrangeRed
+  generatePalette([160, 32, 240], 5)   // Purple
+];
+
+const selectColor = (color) => {
+  newTagColor.value = color;
+  showColorPalette.value = false;
+};
+
+const triggerCustomPicker = () => {
+  if (customColorInput.value) {
+    customColorInput.value.click();
+  }
+};
+
+const handleCustomColor = (event) => {
+  newTagColor.value = event.target.value;
+};
+
+// 点击外部关闭色板
+onMounted(() => {
+  document.addEventListener('click', () => {
+    showColorPalette.value = false;
+  });
+  loadTags();
+});
+
+// 计算属性
+const filteredTags = computed(() => {
+  if (!searchQuery.value) {
+    return tags.value;
+  }
+  const query = searchQuery.value.toLowerCase();
+  return tags.value.filter(tag => tag.name.toLowerCase().includes(query));
+});
 
 // 方法
 const loadTags = async () => {
@@ -354,51 +461,172 @@ h2 {
   color: #2c3e50;
 }
 
-/* 添加新标签 */
-.add-tag-container {
+/* 标签搜索与添加 */
+.tag-controls {
   display: flex;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 1.5rem;
   margin-bottom: 2rem;
   align-items: center;
-  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.search-box {
+  flex: 1;
+  min-width: 250px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e1e8ed;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+  background-color: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+}
+
+.search-input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(0, 206, 209, 0.15);
+}
+
+.add-tag-container {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  background: #fff;
+  padding: 0.5rem;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  border: 1px solid #e1e8ed;
 }
 
 .tag-input {
-  flex: 1;
-  min-width: 250px;
-  padding: 0.75rem 1rem;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  font-size: 1rem;
+  min-width: 200px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e1e8ed;
+  border-radius: 6px;
+  font-size: 0.9rem;
 }
 
-.color-picker {
-  width: 50px;
-  height: 40px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
+.tag-input:focus {
+  border-color: var(--primary-color);
+}
+
+.color-picker-wrapper {
+  position: relative;
+}
+
+.color-preview {
+  width: 40px;
+  height: 36px;
+  border: 1px solid #e1e8ed;
+  border-radius: 6px;
   cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.color-palette-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 0.8rem;
+  background: white;
+  border: 1px solid #e1e8ed;
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  z-index: 100;
+  width: 260px;
+  animation: paletteFadeIn 0.2s ease-out;
+}
+
+@keyframes paletteFadeIn {
+  from { opacity: 0; transform: translate(-50%, -10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.palette-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.palette-row:last-child {
+  margin-bottom: 0;
+}
+
+.custom-color-row {
+  margin-top: 1rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: center;
+}
+
+.custom-color-btn {
+  background: transparent;
+  border: 1px solid var(--primary-color);
+  color: var(--primary-color);
+  padding: 0.4rem 1rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.custom-color-btn:hover {
+  background: var(--primary-light);
+  box-shadow: 0 2px 4px rgba(0, 206, 209, 0.15);
+}
+
+.color-swatch {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.2s;
+  border: 2px solid transparent;
+}
+
+.color-swatch:hover {
+  transform: scale(1.1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.color-swatch.active {
+  border-color: #333;
+  transform: scale(1.1);
 }
 
 .add-tag-btn {
-  padding: 0.75rem 1.5rem;
-  background: #4CAF50;
+  padding: 0.5rem 1.2rem;
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0.9rem;
   white-space: nowrap;
+  font-weight: 500;
+  box-shadow: 0 2px 6px rgba(0, 206, 209, 0.2);
+  transition: all 0.3s ease;
 }
 
 .add-tag-btn:hover {
-  background: #45a049;
+  background: linear-gradient(135deg, var(--primary-hover), var(--primary-color));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0, 206, 209, 0.3);
 }
 
 /* 标签列表 */
 .tags-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1.5rem;
   margin-bottom: 2rem;
 }
@@ -407,36 +635,41 @@ h2 {
   background: white;
   border-radius: 12px;
   padding: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border-left: 4px solid;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: var(--shadow-sm);
+  border-left: 5px solid;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
 }
 
 .tag-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
 }
 
 .tag-info {
-  margin-bottom: 1rem;
+  margin-bottom: 1.2rem;
 }
 
 .tag-name {
   margin: 0 0 0.5rem 0;
-  font-size: 1.2rem;
-  color: #2c3e50;
+  font-size: 1.25rem;
+  color: var(--text-main);
+  font-weight: 600;
+  letter-spacing: -0.5px;
 }
 
 .tag-meta {
   display: flex;
   justify-content: space-between;
-  color: #666;
-  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
 }
 
 .tag-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.75rem;
 }
 
 .view-btn, .edit-btn, .delete-btn {
@@ -444,36 +677,43 @@ h2 {
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 0.9rem;
-  transition: background-color 0.2s ease;
+  font-size: 0.85rem;
+  transition: all 0.2s ease;
+  font-weight: 500;
 }
 
 .view-btn {
-  background: #2196F3;
-  color: white;
+  background: var(--primary-light);
+  color: var(--primary-dark);
   flex: 1;
+  border: 1px solid transparent;
 }
 
 .view-btn:hover {
-  background: #1976D2;
+  background: var(--primary-color);
+  color: white;
+  box-shadow: 0 2px 6px rgba(0, 206, 209, 0.25);
 }
 
 .edit-btn {
-  background: #f5f5f5;
-  color: #333;
+  background: #f0f2f5;
+  color: var(--text-secondary);
 }
 
 .edit-btn:hover {
-  background: #e0e0e0;
+  background: #e1e8ed;
+  color: var(--text-main);
 }
 
 .delete-btn {
-  background: #ff4444;
-  color: white;
+  background: #fff0f0;
+  color: #ff5252;
 }
 
 .delete-btn:hover {
-  background: #cc0000;
+  background: #ff5252;
+  color: white;
+  box-shadow: 0 2px 6px rgba(255, 82, 82, 0.25);
 }
 
 /* 空状态 */

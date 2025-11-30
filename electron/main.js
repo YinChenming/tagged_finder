@@ -453,6 +453,16 @@ function registerIpcHandlers() {
     }
   });
 
+  // 打开外部链接
+  ipcMain.handle('open-external', (event, url) => {
+    try {
+      shell.openExternal(url);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
   // 获取设置信息
   ipcMain.handle('get-settings', () => {
     try {

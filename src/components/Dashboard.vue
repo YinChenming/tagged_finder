@@ -158,13 +158,37 @@ const selectAndIndexDirectory = async () => {
   }
 };
 
-const refreshAllIndexes = () => {
-  // 这里可以实现刷新所有索引的逻辑
-  recentActivities.value.unshift({
-    icon: '🔄',
-    text: '刷新所有索引',
-    time: '刚刚'
-  });
+const refreshAllIndexes = async () => {
+  try {
+    // 获取当前所有监控的目录
+    const dirsResponse = await window.electronAPI.getWatchedDirectories();
+    if (dirsResponse.success) {
+      const directories = dirsResponse.directories;
+      let successCount = 0;
+      
+      // 逐个重新索引
+      for (const dir of directories) {
+        const result = await window.electronAPI.scanDirectory(dir.id);
+        if (result.success) {
+          successCount++;
+        }
+      }
+      
+      // 更新活动记录
+      recentActivities.value.unshift({
+        icon: '🔄',
+        text: `刷新了 ${successCount}/${directories.length} 个目录索引`,
+        time: '刚刚'
+      });
+      
+      // 重新加载仪表盘数据
+      await loadDashboardData();
+    } else {
+      console.error('获取目录失败:', dirsResponse.error);
+    }
+  } catch (error) {
+    console.error('刷新索引失败:', error);
+  }
 };
 
 const viewAllFiles = () => {

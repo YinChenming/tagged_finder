@@ -1,8 +1,25 @@
 /* 全局样式重置与基础设置 */
 :root {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  background-color: #f5f5f5;
-  color: #333;
+  
+  /* Cyan 色系调色板 */
+  --primary-color: #00CED1; /* DarkTurquoise，比纯Cyan稍深，更适合阅读 */
+  --primary-hover: #00E5EE;
+  --primary-light: #E0FFFF; /* LightCyan */
+  --primary-dark: #008B8B; /* DarkCyan */
+  --accent-color: #00FFFF; /* Cyan */
+  
+  --text-main: #2c3e50;
+  --text-secondary: #546e7a;
+  --bg-main: #f8fafd;
+  --bg-card: #ffffff;
+  --border-color: #e1e8ed;
+  
+  --shadow-sm: 0 2px 4px rgba(0, 206, 209, 0.1);
+  --shadow-md: 0 4px 12px rgba(0, 206, 209, 0.15);
+  
+  background-color: var(--bg-main);
+  color: var(--text-main);
 }
 
 /* 移除默认的 body 边距并确保全屏 */
@@ -35,8 +52,8 @@ body {
 /* 仅为 content-area 显示滚动条 */
 .content-area::-webkit-scrollbar {
   display: block;
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 .content-area::-webkit-scrollbar-track {
@@ -44,10 +61,47 @@ body {
 }
 
 .content-area::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.2);
-  border-radius: 4px;
+  background-color: rgba(0, 206, 209, 0.3);
+  border-radius: 3px;
 }
 
 .content-area::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: rgba(0, 206, 209, 0.6);
+}
+
+/* 全局输入框样式重置与美化 */
+input[type="text"],
+input[type="number"],
+input[type="password"],
+textarea,
+select {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+  background-color: #fff;
+  color: var(--text-main);
+  outline: none;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(0, 206, 209, 0.15);
+}
+
+/* 全局按钮基础样式 */
+button {
+  border-radius: 8px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: none;
+  outline: none;
+}
+
+button:active {
+  transform: translateY(1px);
 }
