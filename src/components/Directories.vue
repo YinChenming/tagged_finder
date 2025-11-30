@@ -11,7 +11,8 @@
         readonly
         class="dir-path-input"
       />
-      <button class="browse-btn" @click="openDirectoryPicker">浏览...</button>
+      <button class="browse-btn" @click="openDirectoryPicker">浏览目录...</button>
+      <button class="browse-btn" @click="addFiles" style="margin-left: 10px;">添加文件...</button>
       <button class="add-dir-btn" @click="addDirectory">添加目录</button>
     </div>
 
@@ -108,10 +109,22 @@ const dirToDelete = ref(null);
 
 // 计算属性
 const activeDirectoriesCount = computed(() => {
+  // 虚拟目录已经被后端过滤，前端只需计算当前列表
   return directories.value.filter(dir => dir.is_watching).length;
 });
 
 const totalFilesCount = computed(() => {
+  // 由于虚拟目录被过滤，前端无法直接统计其中的文件。
+  // 但这只是"目录管理"页面的统计，可以只显示"已添加目录"中的文件数。
+  // 或者，如果后端返回了包含虚拟目录的总数，我们可以使用那个。
+  // 目前为了简单，我们只统计可见目录的文件。
+  // 如果需要包含虚拟目录的文件数，我们需要一个新的 API 或者让 getWatchedDirectories 返回总数。
+  
+  // 修正：后端虽然过滤了列表，但我们可以请求一个总的统计信息，
+  // 或者修改后端 getWatchedDirectories 返回结构包含 stats。
+  // 鉴于当前架构，我们可以保留现状（只统计可见目录），
+  // 或者请求 dashboard 数据来获取全局统计。
+  // 这里暂时只统计可见目录。
   return directories.value.reduce((sum, dir) => sum + (dir.files_count || 0), 0);
 });
 
@@ -126,6 +139,15 @@ const loadDirectories = async () => {
     const response = await window.electronAPI.getWatchedDirectories();
     if (response.success) {
       directories.value = response.directories;
+      
+      // 我们需要额外获取全局统计信息来补充"虚拟文件"的数据
+      // 或者我们可以在 Dashboard 组件中查看全局数据
+      // 这里我们尝试获取一次数据库信息来更新 totalFilesCount 如果需要精确值
+      // 但由于 computed 是基于 directories 的，我们可能需要一个新的响应式变量
+      // 暂时保持原样，因为用户要求"不计入已添加目录和正在监控"
+      // 但"其中的文件仍然要统计入索引中" -> 这通常意味着在 Dashboard 或全局搜索中可见
+      // 在"目录管理"页面的统计卡片中，如果不显示虚拟目录，那么这里的统计自然也不包含它，这逻辑是自洽的。
+      // 如果用户希望这里的"已索引文件"包含所有（包括虚拟目录），我们需要额外获取。
     }
   } catch (error) {
     console.error('加载目录失败:', error);
@@ -140,6 +162,31 @@ const openDirectoryPicker = async () => {
     }
   } catch (error) {
     console.error('选择目录失败:', error);
+  }
+};
+
+const addFiles = async () => {
+  try {
+    // 1. 选择文件
+    const selectResponse = await window.electronAPI.selectFiles();
+    if (!selectResponse.success || selectResponse.paths.length === 0) {
+      return;
+    }
+    
+    const filePaths = selectResponse.paths;
+    
+    // 2. 添加到监控
+    const addResponse = await window.electronAPI.addWatchedFiles(filePaths);
+    
+    if (addResponse.success) {
+      alert(`成功添加 ${addResponse.count} 个文件到监控列表`);
+      // 重新加载目录列表以显示/更新虚拟目录统计
+      await loadDirectories();
+    } else {
+      alert(`添加文件失败: ${addResponse.error}`);
+    }
+  } catch (error) {
+    console.error('添加文件失败:', error);
   }
 };
 

@@ -1,7 +1,8 @@
-import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, nativeImage } from 'electron';
 import path from 'path';
 import url from 'url';
 import fs from 'fs';
+import os from 'os';
 import { fileURLToPath } from 'url';
 
 // 获取当前文件的目录路径（ES模块中没有__dirname）
@@ -15,10 +16,40 @@ import fileWatcher from '../src/main/fileWatcher.js';
 let mainWindow;
 
 // 初始化应用
-function initializeApp() {
+async function initializeApp() {
   // 初始化数据库
   try {
     dbManager.init();
+    
+    // 恢复监控已保存的目录
+    const directories = dbManager.getAllDirectories();
+    console.log(`找到 ${directories.length} 个已保存的目录，准备恢复监控...`);
+    
+    for (const dir of directories) {
+      if (dir.is_watching) {
+        try {
+          // 检查是否是虚拟目录
+          if (dir.path === 'virtual:watched_files') {
+            // 虚拟目录不需要常规的 watchDirectory
+            // 实际上我们需要获取该目录下已有的文件并重新建立 watchFiles
+            // 但由于当前数据库结构中 files 表记录了 directory_id
+            // 我们可以查询出属于该虚拟目录的所有文件，然后重新 watch
+            const files = dbManager.db.prepare('SELECT path FROM files WHERE directory_id = ?').all(dir.id);
+            if (files.length > 0) {
+              const filePaths = files.map(f => f.path);
+              await fileWatcher.watchFiles(filePaths, dir.id);
+            }
+          } else {
+            await fileWatcher.watchDirectory(dir.path, dir.id);
+          }
+          // 触发一次索引以确保数据一致性（修复之前的 potential bugs）
+          // chokidar 的 ignoreInitial: false 会处理文件添加，但显式索引可以确保统计信息更新
+          // 这里我们依赖 chokidar 的 add 事件来更新数据库和统计信息
+        } catch (watchError) {
+          console.error(`恢复监控目录失败 ${dir.path}:`, watchError);
+        }
+      }
+    }
   } catch (error) {
     console.error('应用初始化失败:', error);
   }
@@ -77,6 +108,72 @@ function createWindow() {
 
 // 注册进程间通信事件处理程序
 function registerIpcHandlers() {
+  // 处理原生文件拖放
+  ipcMain.on('ondragstart', async (event, filePath) => {
+    try {
+      // 尝试获取文件图标
+      const icon = await app.getFileIcon(filePath);
+      
+      // 使用 startDrag 触发原生 OS 级拖放
+      event.sender.startDrag({
+        file: filePath,
+        icon: icon
+      });
+    } catch (error) {
+      console.error('启动拖放失败:', error);
+      // 降级尝试：不带图标
+      try {
+        event.sender.startDrag({
+          file: filePath,
+          icon: nativeImage.createEmpty()
+        });
+      } catch (e) {
+        console.error('降级拖放也失败:', e);
+      }
+    }
+  });
+
+  // 选择单个或多个文件
+  ipcMain.handle('select-files', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile', 'multiSelections']
+    });
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      return { success: true, paths: result.filePaths };
+    }
+    return { success: false, paths: [] };
+  });
+
+  // 添加文件监控（添加到虚拟目录）
+  ipcMain.handle('add-watched-files', async (event, filePaths) => {
+    try {
+      // 获取虚拟目录ID
+      let virtualDirId = dbManager.getVirtualDirectoryId();
+      
+      // 如果不存在，尝试创建
+      if (!virtualDirId) {
+        dbManager.ensureVirtualDirectory();
+        virtualDirId = dbManager.getVirtualDirectoryId();
+      }
+      
+      if (!virtualDirId) {
+        throw new Error('无法获取虚拟目录ID');
+      }
+
+      // 开始监控文件
+      await fileWatcher.watchFiles(filePaths, virtualDirId);
+      
+      // 更新目录统计信息
+      dbManager.updateDirectoryStats(virtualDirId);
+
+      return { success: true, count: filePaths.length };
+    } catch (error) {
+      console.error('添加监控文件失败:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
   // 选择要索引的目录
   ipcMain.handle('select-directory', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
@@ -92,15 +189,22 @@ function registerIpcHandlers() {
   // 添加目录（集成选择、索引和监控）
   ipcMain.handle('add-directory', async (event, directoryPath) => {
     try {
-      // 首先索引目录
-      await fileWatcher.indexDirectory(directoryPath);
-      // 然后开始监控
-      await fileWatcher.watchDirectory(directoryPath);
       // 添加到数据库并获取ID
       const dbResult = dbManager.addDirectory(directoryPath, true);
+      
+      if (!dbResult || !dbResult.id) {
+        throw new Error('无法添加目录到数据库');
+      }
+
+      const directoryId = dbResult.id;
+
+      // 索引目录，传入 directoryId
+      await fileWatcher.indexDirectory(directoryPath, directoryId);
+      // 开始监控，传入 directoryId
+      await fileWatcher.watchDirectory(directoryPath, directoryId);
 
       // 获取完整的目录信息
-      const directory = dbManager.getDirectoryById(dbResult.id);
+      const directory = dbManager.getDirectoryById(directoryId);
 
       return {
         success: true,
@@ -137,8 +241,8 @@ function registerIpcHandlers() {
         // 如果之前在监控，现在取消监控
         await fileWatcher.unwatchDirectory(directory.path);
       } else {
-        // 如果之前未监控，现在开始监控
-        await fileWatcher.watchDirectory(directory.path);
+        // 如果之前未监控，现在开始监控，传入 directoryId
+        await fileWatcher.watchDirectory(directory.path, directoryId);
       }
 
       return { success: true };
@@ -151,10 +255,24 @@ function registerIpcHandlers() {
   // 扫描目录IPC处理程序
   ipcMain.handle('scan-directory', async (event, directoryId) => {
     try {
-      // 这里应该调用Python脚本扫描目录
       console.log('Scanning directory:', directoryId);
-      // 模拟返回成功结果
-      return { success: true, scannedFiles: Math.floor(Math.random() * 100), elapsedTime: Math.floor(Math.random() * 10) + 1 };
+      
+      const directory = dbManager.getDirectoryById(directoryId);
+      if (!directory) {
+        throw new Error('目录不存在');
+      }
+
+      // 调用 fileWatcher 重新索引
+      await fileWatcher.indexDirectory(directory.path, directoryId);
+      
+      // 获取更新后的统计信息
+      const updatedDir = dbManager.getDirectoryById(directoryId);
+      
+      return { 
+        success: true, 
+        scannedFiles: updatedDir.files_count, 
+        elapsedTime: 0 
+      };
     } catch (error) {
       console.error('Error scanning directory:', error);
       return { success: false, error: error.message };
@@ -195,9 +313,12 @@ function registerIpcHandlers() {
   ipcMain.handle('get-watched-directories', () => {
     try {
       const directories = dbManager.getAllDirectories();
+      // 过滤掉虚拟目录，使其不显示在前端列表
+      const visibleDirectories = directories.filter(dir => dir.path !== 'virtual:watched_files');
+      
       return {
         success: true,
-        directories: directories.map(dir => ({
+        directories: visibleDirectories.map(dir => ({
           id: dir.id,
           path: dir.path,
           name: dir.name,
@@ -305,6 +426,15 @@ function registerIpcHandlers() {
     }
   });
 
+  ipcMain.handle('untag-file', (event, { fileId, tagId }) => {
+    try {
+      dbManager.untagFile(fileId, tagId);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
   ipcMain.handle('get-files-by-tag', (event, tagId) => {
     try {
       return { success: true, files: dbManager.getFilesByTag(tagId) };
@@ -326,14 +456,21 @@ function registerIpcHandlers() {
   // 获取设置信息
   ipcMain.handle('get-settings', () => {
     try {
-      // 返回默认设置信息
-      return {
-        autoIndex: true,
-        excludePatterns: ['node_modules', '.git'],
-        indexingInterval: 300000 // 5分钟
-      };
+      const settings = dbManager.getSettings();
+      return { success: true, settings };
     } catch (error) {
       console.error('获取设置失败:', error);
+      return { error: error.message };
+    }
+  });
+
+  // 更新设置信息
+  ipcMain.handle('update-settings', (event, settings) => {
+    try {
+      dbManager.updateSettings(settings);
+      return { success: true };
+    } catch (error) {
+      console.error('更新设置失败:', error);
       return { error: error.message };
     }
   });
@@ -341,7 +478,6 @@ function registerIpcHandlers() {
   // 获取系统信息
   ipcMain.handle('get-system-info', () => {
     try {
-      const os = require('os');
       return {
         platform: os.platform(),
         arch: os.arch(),
@@ -355,14 +491,29 @@ function registerIpcHandlers() {
     }
   });
 
+  // 获取应用信息
+  ipcMain.handle('get-app-info', () => {
+    return {
+      success: true,
+      version: app.getVersion(),
+      electron: process.versions.electron,
+      node: process.versions.node,
+      platform: process.platform,
+      osRelease: os.release()
+    };
+  });
+
   // 获取数据库信息
   ipcMain.handle('get-database-info', () => {
     try {
       return {
+        success: true,
         fileCount: dbManager.getAllFiles().length,
         tagCount: dbManager.getAllTags().length,
         directoryCount: fileWatcher.getWatchedDirectories().length,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
+        size: dbManager.getDatabaseSize(), // 获取真实数据库大小
+        path: path.join(process.cwd(), 'src/database/tagged_finder.db') // 返回真实路径
       };
     } catch (error) {
       console.error('获取数据库信息失败:', error);

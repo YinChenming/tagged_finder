@@ -171,7 +171,7 @@ const settings = ref({
   monitoringInterval: 60,
   indexContent: false,
   contentIndexDepth: 'light',
-  ignorePatterns: '*.tmp\n.DS_Store\nThumbs.db\n*.bak\nnode_modules/\n.git/\n__pycache__/',
+  ignorePatterns: '',
   dbPath: ''
 });
 
@@ -198,10 +198,15 @@ const loadSettings = async () => {
 
 const loadSystemInfo = async () => {
   try {
-    const response = await window.electronAPI.getSystemInfo();
-    if (response.success) {
-      systemInfo.value = response.systemInfo;
-      appVersion.value = response.appVersion;
+    // 获取应用版本信息
+    const appInfo = await window.electronAPI.getAppInfo();
+    if (appInfo.success) {
+      appVersion.value = appInfo.version;
+      systemInfo.value = {
+        os: `${appInfo.platform} (${appInfo.osRelease})`,
+        electron: appInfo.electron,
+        nodejs: appInfo.node
+      };
     }
   } catch (error) {
     console.error('加载系统信息失败:', error);
@@ -222,7 +227,11 @@ const loadDatabaseInfo = async () => {
 
 const saveSettings = async () => {
   try {
-    const response = await window.electronAPI.saveSettings(settings.value);
+    // 调用新的 update-settings 接口
+    // 使用 JSON.parse(JSON.stringify()) 深拷贝以移除 Vue 的响应式代理，
+    // 避免 Electron 的 IPC 序列化失败 (An object could not be cloned)
+    const plainSettings = JSON.parse(JSON.stringify(settings.value));
+    const response = await window.electronAPI.updateSettings(plainSettings);
     if (response.success) {
       alert('设置已保存');
     }
@@ -239,9 +248,11 @@ const restoreDefaults = () => {
       monitoringInterval: 60,
       indexContent: false,
       contentIndexDepth: 'light',
-      ignorePatterns: '*.tmp\n.DS_Store\nThumbs.db\n*.bak\nnode_modules/\n.git/\n__pycache__/',
+      ignorePatterns: '',
       dbPath: settings.value.dbPath
     };
+    // 立即保存恢复的默认设置到数据库
+    saveSettings();
   }
 };
 
