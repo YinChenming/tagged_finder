@@ -32,8 +32,18 @@ function createWindow() {
     webPreferences: {
         contextIsolation: true,
         enableRemoteModule: false,
-        preload: path.join(__dirname, 'preload.cjs')
-      }
+        preload: path.join(__dirname, 'preload.cjs'),
+        // 确保支持拖放功能
+        nodeIntegration: false
+      },
+    // 允许文件拖出应用
+    acceptFirstMouse: true
+  });
+
+  // 启用文件拖放功能
+  mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+    // 允许所有权限请求（用于开发环境）
+    callback(true);
   });
 
   // 加载应用的 index.html

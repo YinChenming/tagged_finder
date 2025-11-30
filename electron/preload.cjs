@@ -2,6 +2,20 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // 暴露API到渲染进程
 contextBridge.exposeInMainWorld('electronAPI', {
+  // 拖放相关API
+    getSupportedDragFormats: () => {
+      // 返回支持的拖放格式
+      return ['text/plain', 'text/uri-list', 'public.file-url'];
+    },
+    // 配置文件拖放数据
+    setupFileDragData: (filePath) => {
+      // 返回配置好的拖放数据格式
+      return {
+        plainText: filePath,
+        uriList: `file://${filePath}`,
+        fileUrl: `file://${filePath}`
+      };
+    },
   // 目录选择和索引相关
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
   indexDirectory: (directoryPath) => ipcRenderer.invoke('index-directory', directoryPath),

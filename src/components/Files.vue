@@ -45,7 +45,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="file in filteredFiles" :key="file.id" class="file-item">
+          <tr v-for="file in filteredFiles" :key="file.id" class="file-item" draggable="true" @dragstart="handleDragStart($event, file)">
             <td class="file-name" @click="openFile(file.path)">
               <span class="file-icon">{{ getFileIcon(file.name) }}</span>
               <span class="file-text">{{ file.name }}</span>
@@ -298,6 +298,45 @@ const toggleTag = (tagId) => {
   } else {
     selectedTags.value.push(tagId);
   }
+};
+
+// 处理文件拖动开始事件
+const handleDragStart = (event, file) => {
+  // 设置拖动效果为复制
+  event.dataTransfer.effectAllowed = 'copy';
+
+  try {
+    // 使用Electron API配置拖放数据
+    if (window.electronAPI && window.electronAPI.setupFileDragData) {
+      const dragData = window.electronAPI.setupFileDragData(file.path);
+
+      // 设置各种格式的拖放数据
+      event.dataTransfer.setData('text/plain', dragData.plainText);
+      event.dataTransfer.setData('text/uri-list', dragData.uriList);
+
+      // 对于macOS，使用特殊格式
+      if (process.platform === 'darwin') {
+        event.dataTransfer.setData('public.file-url', dragData.fileUrl);
+      }
+    } else {
+      // 降级方案：直接设置数据
+      event.dataTransfer.setData('text/plain', file.path);
+      event.dataTransfer.setData('text/uri-list', `file://${file.path}`);
+    }
+  } catch (error) {
+    console.error('设置拖放数据失败:', error);
+    // 确保至少有基本的文本数据
+    event.dataTransfer.setData('text/plain', file.path);
+  }
+
+  // 添加样式提示用户正在拖动
+  event.target.classList.add('dragging');
+};
+
+// 添加拖放相关的样式调整
+const handleDragEnd = (event) => {
+  // 移除拖动样式
+  event.target.classList.remove('dragging');
 };
 
 const applyTags = async () => {
