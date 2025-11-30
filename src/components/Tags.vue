@@ -182,7 +182,7 @@ const addNewTag = async () => {
   }
 
   try {
-    const response = await window.electronAPI.createTag({
+    const response = await window.electronAPI.addTag({
       name: newTagName.value.trim(),
       color: newTagColor.value
     });

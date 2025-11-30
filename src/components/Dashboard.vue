@@ -106,8 +106,12 @@ const loadDashboardData = async () => {
     }
     
     // 获取监控目录
-    const dirs = await window.electronAPI.getWatchedDirectories();
-    watchedDirs.value = dirs;
+    const dirsResponse = await window.electronAPI.getWatchedDirectories();
+    if (dirsResponse.success) {
+      watchedDirs.value = dirsResponse.directories;
+    } else {
+      console.error('获取监控目录失败:', dirsResponse.error);
+    }
     
     // 模拟数据库大小
     dbSize.value = Math.floor(Math.random() * 1024 * 1024); // 模拟1MB以内的数据库大小

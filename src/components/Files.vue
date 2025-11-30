@@ -1,12 +1,12 @@
 <template>
   <div class="files-container">
     <h2>文件管理</h2>
-    
+
     <!-- 搜索和筛选区域 -->
     <div class="search-filter">
       <div class="search-box">
-        <input 
-          type="text" 
+        <input
+          type="text"
           v-model="searchQuery"
           placeholder="搜索文件名..."
           class="search-input"
@@ -30,7 +30,7 @@
         <button class="refresh-btn" @click="refreshFiles">🔄</button>
       </div>
     </div>
-    
+
     <!-- 文件列表 -->
     <div class="files-list">
       <table class="files-table">
@@ -67,7 +67,7 @@
           </tr>
         </tbody>
       </table>
-      
+
       <!-- 空状态 -->
       <div v-if="filteredFiles.length === 0" class="empty-state">
         <div class="empty-icon">📁</div>
@@ -75,7 +75,7 @@
         <button class="primary-btn" @click="goToDashboard">去仪表盘添加目录</button>
       </div>
     </div>
-    
+
     <!-- 文件信息对话框 -->
     <div v-if="showInfoDialog" class="dialog-overlay" @click.self="closeInfoDialog">
       <div class="dialog">
@@ -107,7 +107,7 @@
         </div>
       </div>
     </div>
-    
+
     <!-- 添加标签对话框 -->
     <div v-if="showTagDialog" class="dialog-overlay" @click.self="closeTagDialog">
       <div class="dialog">
@@ -117,8 +117,8 @@
         </div>
         <div class="dialog-content">
           <div class="tag-selection">
-            <button 
-              v-for="tag in tags" 
+            <button
+              v-for="tag in tags"
               :key="tag.id"
               class="tag-option"
               :class="{ selected: selectedTags.includes(tag.id) }"
@@ -156,22 +156,22 @@ const selectedTags = ref([]);
 // 计算属性
 const filteredFiles = computed(() => {
   let result = [...files.value];
-  
+
   // 搜索过滤
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase();
-    result = result.filter(file => 
+    result = result.filter(file =>
       file.name.toLowerCase().includes(query)
     );
   }
-  
+
   // 文件类型过滤
   if (fileTypeFilter.value) {
-    result = result.filter(file => 
+    result = result.filter(file =>
       file.name.endsWith(fileTypeFilter.value)
     );
   }
-  
+
   // 排序
   result.sort((a, b) => {
     switch (sortBy.value) {
@@ -185,7 +185,7 @@ const filteredFiles = computed(() => {
         return 0;
     }
   });
-  
+
   return result;
 });
 
@@ -271,7 +271,7 @@ const closeInfoDialog = () => {
 const showAddTagDialog = async (fileId) => {
   currentFileId.value = fileId;
   selectedTags.value = [];
-  
+
   // 加载文件已有的标签，自动选中
   try {
     const response = await window.electronAPI.getFileTags(fileId);
@@ -281,7 +281,7 @@ const showAddTagDialog = async (fileId) => {
   } catch (error) {
     console.error(`加载文件${fileId}的标签失败:`, error);
   }
-  
+
   showTagDialog.value = true;
 };
 
@@ -305,18 +305,18 @@ const applyTags = async () => {
     // 首先获取文件当前已有的标签
     const currentTagsResponse = await window.electronAPI.getFileTags(currentFileId.value);
     const currentTagIds = currentTagsResponse.success ? currentTagsResponse.tags.map(t => t.id) : [];
-    
+
     // 找出需要添加的标签（选中但当前没有的）
     const tagsToAdd = selectedTags.value.filter(tagId => !currentTagIds.includes(tagId));
-    
+
     // 添加新标签
     for (const tagId of tagsToAdd) {
-      await window.electronAPI.tagFile({ 
-        fileId: currentFileId.value, 
-        tagId 
+      await window.electronAPI.tagFile({
+        fileId: currentFileId.value,
+        tagId
       });
     }
-    
+
     closeTagDialog();
     await loadFileTags(currentFileId.value); // 更新当前文件的标签
   } catch (error) {
@@ -474,7 +474,7 @@ h2 {
   background: white;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 .files-table {
@@ -706,21 +706,22 @@ h2 {
   .search-filter {
     flex-direction: column;
   }
-  
+
   .search-box {
     max-width: 100%;
   }
-  
+
   .filter-options {
     width: 100%;
     justify-content: space-between;
   }
-  
-  .files-table {
+
+  /* 响应式表格处理已在容器级别完成 */
+  /* .files-table {
     display: block;
     overflow-x: auto;
-  }
-  
+  } */
+
   .tag-selection {
     justify-content: center;
   }
