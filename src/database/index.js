@@ -12,15 +12,16 @@ if (!fs.existsSync(dbDir)) {
 const dbPath = path.join(dbDir, 'tagged_finder.db');
 
 class DatabaseManager {
-  constructor() {
+  constructor(customDbPath = null) {
     this.db = null;
+    this.dbPath = customDbPath || dbPath;
   }
 
   // 初始化数据库
   init() {
     try {
       // 创建数据库连接
-      this.db = new Database(dbPath);
+      this.db = new Database(this.dbPath);
 
       // 创建必要的表
       this.createTables();
@@ -30,6 +31,16 @@ class DatabaseManager {
     } catch (error) {
       console.error('数据库初始化失败:', error);
       return null;
+    }
+  }
+
+  // 确保数据库已初始化
+  _ensureDb() {
+    if (!this.db) {
+      this.init();
+    }
+    if (!this.db) {
+      throw new Error('Database not initialized');
     }
   }
 
@@ -168,6 +179,7 @@ class DatabaseManager {
 
   // 获取设置
   getSettings() {
+    this._ensureDb();
     try {
       const rows = this.db.prepare('SELECT key, value FROM settings').all();
       const settings = {};
@@ -196,6 +208,7 @@ class DatabaseManager {
 
   // 更新设置
   updateSettings(settings) {
+    this._ensureDb();
     try {
       const stmt = this.db.prepare(
         'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)'
@@ -221,6 +234,7 @@ class DatabaseManager {
 
   // 添加默认设置
   addDefaultSettings() {
+    this._ensureDb();
     try {
       const settings = {
         'auto_start_monitoring': 'true',
@@ -243,6 +257,7 @@ class DatabaseManager {
 
   // 添加文件（如果存在则更新，保留ID以维持关联）
   addFile(file) {
+    this._ensureDb();
     try {
       // 检查文件是否已存在
       const existing = this.db.prepare('SELECT id FROM files WHERE path = ?').get(file.path);
@@ -276,18 +291,21 @@ class DatabaseManager {
 
   // 根据路径获取文件
   getFileByPath(path) {
+    this._ensureDb();
     const stmt = this.db.prepare('SELECT * FROM files WHERE path = ?');
     return stmt.get(path);
   }
 
   // 根据ID获取文件
   getFileById(id) {
+    this._ensureDb();
     const stmt = this.db.prepare('SELECT * FROM files WHERE id = ?');
     return stmt.get(id);
   }
 
   // 更新目录统计信息
   updateDirectoryStats(directoryId) {
+    this._ensureDb();
     try {
       // 计算文件数量
       const filesCount = this.db.prepare(
@@ -310,18 +328,21 @@ class DatabaseManager {
 
   // 获取所有文件
   getAllFiles() {
+    this._ensureDb();
     const stmt = this.db.prepare('SELECT * FROM files ORDER BY name');
     return stmt.all();
   }
 
   // 删除文件
   deleteFile(fileId) {
+    this._ensureDb();
     const stmt = this.db.prepare('DELETE FROM files WHERE id = ?');
     return stmt.run(fileId);
   }
 
   // 标签相关操作
   addTag(name, color = '#007AFF') {
+    this._ensureDb();
     const stmt = this.db.prepare(
       'INSERT OR IGNORE INTO tags (name, color) VALUES (?, ?)'
     );
@@ -330,18 +351,21 @@ class DatabaseManager {
 
   // 获取所有标签
   getAllTags() {
+    this._ensureDb();
     const stmt = this.db.prepare('SELECT * FROM tags ORDER BY name');
     return stmt.all();
   }
 
   // 删除标签
   deleteTag(id) {
+    this._ensureDb();
     const stmt = this.db.prepare('DELETE FROM tags WHERE id = ?');
     return stmt.run(id);
   }
 
   // 更新标签
   updateTag(id, name, color) {
+    this._ensureDb();
     try {
       const stmt = this.db.prepare(
         'UPDATE tags SET name = ?, color = ? WHERE id = ?'
@@ -359,24 +383,15 @@ class DatabaseManager {
 
   // 获取标签关联的文件数量
   getFilesCount(tagId) {
+    this._ensureDb();
     const stmt = this.db.prepare('SELECT COUNT(*) as count FROM file_tags WHERE tag_id = ?');
     const result = stmt.get(tagId);
     return result.count || 0;
   }
 
-  // 获取文件关联的标签
-  getFileTags(fileId) {
-    const stmt = this.db.prepare(`
-      SELECT t.id, t.name, t.color
-      FROM tags t
-      JOIN file_tags ft ON t.id = ft.tag_id
-      WHERE ft.file_id = ?
-    `);
-    return stmt.all(fileId);
-  }
-
   // 获取文件是否已被标记
   isFileTagged(fileId, tagId) {
+    this._ensureDb();
     const stmt = this.db.prepare('SELECT * FROM file_tags WHERE file_id = ? AND tag_id = ?');
     const result = stmt.get(fileId, tagId);
     return result !== undefined;
@@ -384,6 +399,7 @@ class DatabaseManager {
 
   // 文件标签关联操作
   tagFile(fileId, tagId) {
+    this._ensureDb();
     const stmt = this.db.prepare(
       'INSERT OR IGNORE INTO file_tags (file_id, tag_id) VALUES (?, ?)'
     );
@@ -392,6 +408,7 @@ class DatabaseManager {
 
   // 取消文件标签关联
   untagFile(fileId, tagId) {
+    this._ensureDb();
     const stmt = this.db.prepare(
       'DELETE FROM file_tags WHERE file_id = ? AND tag_id = ?'
     );
@@ -400,6 +417,7 @@ class DatabaseManager {
 
   // 根据标签查找文件
   getFilesByTag(tagId) {
+    this._ensureDb();
     const stmt = this.db.prepare(`
       SELECT f.* FROM files f
       JOIN file_tags ft ON f.id = ft.file_id
@@ -411,6 +429,7 @@ class DatabaseManager {
 
   // 获取文件的所有标签
   getFileTags(fileId) {
+    this._ensureDb();
     const stmt = this.db.prepare(`
       SELECT t.* FROM tags t
       JOIN file_tags ft ON t.id = ft.tag_id
@@ -422,6 +441,7 @@ class DatabaseManager {
 
   // 更新目录的最后扫描时间
   updateDirectoryScanTime(directoryId) {
+    this._ensureDb();
     try {
       const currentTime = Math.floor(Date.now() / 1000);
       this.db.prepare(
@@ -434,6 +454,7 @@ class DatabaseManager {
 
   // 清理数据库（删除所有文件和标签，但保留目录和设置）
   clearData() {
+    this._ensureDb();
     try {
       this.db.transaction(() => {
         this.db.prepare('DELETE FROM file_tags').run();
@@ -451,26 +472,29 @@ class DatabaseManager {
 
   // 目录相关操作
   // 添加目录
-  addDirectory(path, isWatching = true) {
-    const name = path.split('/').pop() || path;
+  addDirectory(dirPath, isWatching = true) {
+    this._ensureDb();
+    const name = path.basename(dirPath);
     const stmt = this.db.prepare(
       'INSERT OR IGNORE INTO directories (path, name, is_watching) VALUES (?, ?, ?)'
     );
-    const result = stmt.run(path, name, isWatching ? 1 : 0);
+    const result = stmt.run(dirPath, name, isWatching ? 1 : 0);
 
     // 获取插入的目录ID
     const getStmt = this.db.prepare('SELECT id FROM directories WHERE path = ?');
-    return getStmt.get(path);
+    return getStmt.get(dirPath);
   }
 
   // 获取所有目录
   getAllDirectories() {
+    this._ensureDb();
     const stmt = this.db.prepare('SELECT * FROM directories ORDER BY created_at DESC');
     return stmt.all();
   }
 
   // 切换目录监控状态
   toggleDirectoryMonitoring(directoryId) {
+    this._ensureDb();
     // 首先获取当前状态
     const getStmt = this.db.prepare('SELECT is_watching FROM directories WHERE id = ?');
     const currentState = getStmt.get(directoryId);
@@ -487,8 +511,21 @@ class DatabaseManager {
 
   // 根据ID获取目录
   getDirectoryById(directoryId) {
+    this._ensureDb();
     const stmt = this.db.prepare('SELECT * FROM directories WHERE id = ?');
     return stmt.get(directoryId);
+  }
+
+  // 删除目录
+  deleteDirectory(directoryId) {
+    this._ensureDb();
+    try {
+      const stmt = this.db.prepare('DELETE FROM directories WHERE id = ?');
+      return stmt.run(directoryId);
+    } catch (error) {
+      console.error('删除目录失败:', error);
+      throw error;
+    }
   }
 
   // 获取数据库大小（字节）
@@ -509,10 +546,8 @@ class DatabaseManager {
 
   // 备份数据库
   backupDatabase(sourcePath, destinationPath) {
+    this._ensureDb();
     try {
-      const fs = require('fs');
-      const path = require('path');
-
       // 确保目标目录存在
       const destDir = path.dirname(destinationPath);
       if (!fs.existsSync(destDir)) {
@@ -542,6 +577,9 @@ class DatabaseManager {
 
 // 导出单例实例
 const dbManager = new DatabaseManager();
+
+// 导出类以便测试
+export { DatabaseManager };
 
 // 纯ES模块导出
 export default dbManager;

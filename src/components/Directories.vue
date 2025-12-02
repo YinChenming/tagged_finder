@@ -1,19 +1,19 @@
 <template>
   <div class="directories-container">
-    <h2>目录管理</h2>
+    <h2>{{ t('directories.title') }}</h2>
 
     <!-- 添加新目录 -->
     <div class="add-dir-container">
       <input
         type="text"
         v-model="selectedDirPath"
-        placeholder="选择要监控的目录..."
+        :placeholder="t('directories.add.placeholder')"
         readonly
         class="dir-path-input"
       />
-      <button class="browse-btn" @click="openDirectoryPicker">浏览目录...</button>
-      <button class="browse-btn" @click="addFiles" style="margin-left: 10px;">添加文件...</button>
-      <button class="add-dir-btn" @click="addDirectory">添加目录</button>
+      <button class="browse-btn" @click="openDirectoryPicker">{{ t('directories.add.browse') }}</button>
+      <button class="browse-btn" @click="addFiles" style="margin-left: 10px;">{{ t('directories.add.files') }}</button>
+      <button class="add-dir-btn" @click="addDirectory">{{ t('directories.add.button') }}</button>
     </div>
 
     <!-- 目录列表 -->
@@ -28,13 +28,13 @@
             <div class="dir-header">
               <h3 class="dir-name">{{ getDirName(dir.path) }}</h3>
               <div class="dir-status" :class="{ active: dir.is_watching }">
-                {{ dir.is_watching ? '监控中' : '已停止' }}
+                {{ dir.is_watching ? t('directories.status.watching') : t('directories.status.stopped') }}
               </div>
             </div>
             <p class="dir-path">{{ dir.path }}</p>
             <div class="dir-meta">
-              <span>文件数: {{ dir.files_count || 0 }}</span>
-              <span>上次索引: {{ formatDate(dir.last_scan) }}</span>
+              <span>{{ t('directories.meta.files').replace('{count}', dir.files_count || 0) }}</span>
+              <span>{{ t('directories.meta.lastIndexed').replace('{date}', formatDate(dir.last_scan)) }}</span>
             </div>
           </div>
           <div class="dir-actions">
@@ -43,10 +43,10 @@
               @click="toggleDirectory(dir)"
               :class="{ active: dir.is_watching }"
             >
-              {{ dir.is_watching ? '停止监控' : '开始监控' }}
+              {{ dir.is_watching ? t('directories.actions.stop') : t('directories.actions.start') }}
             </button>
-            <button class="scan-btn" @click="scanDirectory(dir)">重新索引</button>
-            <button class="delete-btn" @click="confirmDelete(dir)">删除</button>
+            <button class="scan-btn" @click="scanDirectory(dir)">{{ t('directories.actions.reindex') }}</button>
+            <button class="delete-btn" @click="confirmDelete(dir)">{{ t('directories.actions.delete') }}</button>
           </div>
         </div>
       </div>
@@ -54,8 +54,8 @@
       <!-- 空状态 -->
       <div v-else class="empty-state">
         <div class="empty-icon">📁</div>
-        <p>暂无监控目录，请添加第一个目录</p>
-        <p class="empty-hint">添加目录后，系统将自动扫描并索引其中的所有文件</p>
+        <p>{{ t('directories.empty.title') }}</p>
+        <p class="empty-hint">{{ t('directories.empty.hint') }}</p>
       </div>
     </div>
 
@@ -63,19 +63,19 @@
     <div v-if="directories.length > 0" class="stats-container">
       <div class="stat-card">
         <div class="stat-value">{{ directories.length }}</div>
-        <div class="stat-label">已添加目录</div>
+        <div class="stat-label">{{ t('directories.stats.total') }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-value">{{ activeDirectoriesCount }}</div>
-        <div class="stat-label">正在监控</div>
+        <div class="stat-label">{{ t('directories.stats.watching') }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-value">{{ totalFilesCount }}</div>
-        <div class="stat-label">已索引文件</div>
+        <div class="stat-label">{{ t('directories.stats.indexed') }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-value">{{ totalSize }}</div>
-        <div class="stat-label">总文件大小</div>
+        <div class="stat-label">{{ t('directories.stats.size') }}</div>
       </div>
     </div>
 
@@ -83,14 +83,14 @@
     <div v-if="showDeleteConfirm" class="dialog-overlay" @click.self="cancelDelete">
       <div class="dialog">
         <div class="dialog-header">
-          <h3>确认删除</h3>
+          <h3>{{ t('directories.delete.title') }}</h3>
         </div>
         <div class="dialog-content">
-          <p>确定要移除目录 "{{ dirToDelete?.path }}" 吗？</p>
-          <p class="warning-text">此操作将从索引中删除所有与此目录相关的文件。</p>
+          <p>{{ t('directories.delete.message').replace('{path}', dirToDelete?.path) }}</p>
+          <p class="warning-text">{{ t('directories.delete.warning') }}</p>
           <div class="dialog-footer">
-            <button class="secondary-btn" @click="cancelDelete">取消</button>
-            <button class="danger-btn" @click="deleteDirectory">删除</button>
+            <button class="secondary-btn" @click="cancelDelete">{{ t('common.cancel') }}</button>
+            <button class="danger-btn" @click="deleteDirectory">{{ t('directories.actions.delete') }}</button>
           </div>
         </div>
       </div>
@@ -99,9 +99,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { useI18n } from '../composables/useI18n';
 
 // 状态数据
+const { t, locale } = useI18n();
 const directories = ref([]);
 const selectedDirPath = ref('');
 const showDeleteConfirm = ref(false);
@@ -179,11 +181,11 @@ const addFiles = async () => {
     const addResponse = await window.electronAPI.addWatchedFiles(filePaths);
     
     if (addResponse.success) {
-      alert(`成功添加 ${addResponse.count} 个文件到监控列表`);
+      alert(t('common.alerts.filesAdded').replace('{count}', addResponse.count));
       // 重新加载目录列表以显示/更新虚拟目录统计
       await loadDirectories();
     } else {
-      alert(`添加文件失败: ${addResponse.error}`);
+      alert(t('common.alerts.addFailed').replace('{error}', addResponse.error));
     }
   } catch (error) {
     console.error('添加文件失败:', error);
@@ -192,7 +194,7 @@ const addFiles = async () => {
 
 const addDirectory = async () => {
   if (!selectedDirPath.value) {
-    alert('请选择一个目录');
+    alert(t('common.alerts.selectDir'));
     return;
   }
 
@@ -200,7 +202,7 @@ const addDirectory = async () => {
     // 检查目录是否已存在
     const exists = directories.value.some(dir => dir.path === selectedDirPath.value);
     if (exists) {
-      alert('该目录已添加');
+      alert(t('common.alerts.dirExists'));
       return;
     }
 
@@ -233,7 +235,7 @@ const scanDirectory = async (dir) => {
     const response = await window.electronAPI.scanDirectory(dir.id);
     if (response.success) {
       // 显示扫描进度或提示成功
-      alert('索引已开始，请稍后刷新页面查看结果');
+      alert(t('common.alerts.indexStarted'));
 
       // 更新目录信息
       const index = directories.value.findIndex(d => d.id === dir.id);
@@ -275,9 +277,9 @@ const getDirName = (path) => {
 };
 
 const formatDate = (timestamp) => {
-  if (!timestamp) return '从未';
+  if (!timestamp) return t('common.never') || 'Never';
   const date = new Date(timestamp * 1000);
-  return date.toLocaleString();
+  return date.toLocaleString(locale.value);
 };
 
 const formatSize = (size) => {
@@ -295,6 +297,7 @@ const formatSize = (size) => {
 // 组件挂载时加载目录
 onMounted(() => {
   loadDirectories();
+  window.addEventListener('data-updated', loadDirectories);
 
   // 监听目录变化事件
   window.electronAPI.onDirectoryStatusChange((event, directoryId, status) => {
@@ -303,6 +306,10 @@ onMounted(() => {
       directories.value[index].is_watching = status;
     }
   });
+});
+
+onUnmounted(() => {
+  window.removeEventListener('data-updated', loadDirectories);
 });
 </script>
 

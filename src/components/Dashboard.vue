@@ -1,6 +1,6 @@
 <template>
   <div class="dashboard">
-    <h2>仪表盘</h2>
+    <h2>{{ t('dashboard.title') }}</h2>
     
     <!-- 统计卡片区域 -->
     <div class="stats-cards">
@@ -8,35 +8,35 @@
         <div class="stat-icon">📁</div>
         <div class="stat-content">
           <div class="stat-number">{{ fileCount }}</div>
-          <div class="stat-label">已索引文件</div>
+          <div class="stat-label">{{ t('dashboard.stats.indexedFiles') }}</div>
         </div>
       </div>
       <div class="stat-card">
         <div class="stat-icon">🏷️</div>
         <div class="stat-content">
           <div class="stat-number">{{ tagCount }}</div>
-          <div class="stat-label">已创建标签</div>
+          <div class="stat-label">{{ t('dashboard.stats.createdTags') }}</div>
         </div>
       </div>
       <div class="stat-card">
         <div class="stat-icon">📂</div>
         <div class="stat-content">
           <div class="stat-number">{{ watchedDirs.length }}</div>
-          <div class="stat-label">监控目录</div>
+          <div class="stat-label">{{ t('dashboard.stats.watchedDirs') }}</div>
         </div>
       </div>
       <div class="stat-card">
         <div class="stat-icon">📊</div>
         <div class="stat-content">
           <div class="stat-number">{{ dbSizeFormatted }}</div>
-          <div class="stat-label">数据库大小</div>
+          <div class="stat-label">{{ t('dashboard.stats.dbSize') }}</div>
         </div>
       </div>
     </div>
     
     <!-- 最近活动 -->
     <div class="recent-activity">
-      <h3>最近活动</h3>
+      <h3>{{ t('dashboard.activity.title') }}</h3>
       <div class="activity-list">
         <div class="activity-item" v-for="(activity, index) in recentActivities" :key="index">
           <span class="activity-icon">{{ activity.icon }}</span>
@@ -44,26 +44,26 @@
           <span class="activity-time">{{ activity.time }}</span>
         </div>
         <div v-if="recentActivities.length === 0" class="no-activity">
-          暂无活动记录
+          {{ t('dashboard.activity.none') }}
         </div>
       </div>
     </div>
     
     <!-- 快速操作 -->
     <div class="quick-actions">
-      <h3>快速操作</h3>
+      <h3>{{ t('dashboard.actions.title') }}</h3>
       <div class="action-buttons">
         <button class="action-btn primary" @click="selectAndIndexDirectory">
           <span class="btn-icon">➕</span>
-          添加并索引目录
+          {{ t('dashboard.actions.addAndIndex') }}
         </button>
         <button class="action-btn secondary" @click="refreshAllIndexes">
           <span class="btn-icon">🔄</span>
-          刷新所有索引
+          {{ t('dashboard.actions.refreshAll') }}
         </button>
         <button class="action-btn secondary" @click="viewAllFiles">
           <span class="btn-icon">📋</span>
-          查看所有文件
+          {{ t('dashboard.actions.viewAll') }}
         </button>
       </div>
     </div>
@@ -71,16 +71,18 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { useI18n } from '../composables/useI18n';
 
 // 状态数据
+const { t } = useI18n();
 const fileCount = ref(0);
 const tagCount = ref(0);
 const watchedDirs = ref([]);
 const dbSize = ref(0);
 const recentActivities = ref([
-  { icon: '🆕', text: '应用已启动', time: '刚刚' },
-  { icon: '📊', text: '数据库已初始化', time: '刚刚' }
+  { icon: '🆕', text: t('dashboard.activity.appStarted'), time: t('dashboard.activity.justNow') },
+  { icon: '📊', text: t('dashboard.activity.dbInitialized'), time: t('dashboard.activity.justNow') }
 ]);
 
 // 计算属性
@@ -134,22 +136,21 @@ const selectAndIndexDirectory = async () => {
     const directoryPath = await window.electronAPI.selectDirectory();
     if (directoryPath) {
       // 索引目录
-      const indexResult = await window.electronAPI.indexDirectory(directoryPath);
-      if (indexResult.success) {
-        // 开始监控目录
-        await window.electronAPI.watchDirectory(directoryPath);
-        
+      // 直接调用 addDirectory，它会处理添加数据库、索引和监控
+      const result = await window.electronAPI.addDirectory(directoryPath);
+      
+      if (result.success) {
         // 更新活动记录
         recentActivities.value.unshift({
           icon: '📂',
-          text: `已索引目录: ${directoryPath.split('/').pop()}`,
-          time: '刚刚'
+          text: t('dashboard.activity.indexedDir').replace('{dir}', directoryPath.split(/[/\\]/).pop()),
+          time: t('dashboard.activity.justNow')
         });
         
         // 重新加载数据
         await loadDashboardData();
       } else {
-        alert(`索引目录失败: ${indexResult.error}`);
+        alert(`索引目录失败: ${result.error}`);
       }
     }
   } catch (error) {
@@ -177,8 +178,8 @@ const refreshAllIndexes = async () => {
       // 更新活动记录
       recentActivities.value.unshift({
         icon: '🔄',
-        text: `刷新了 ${successCount}/${directories.length} 个目录索引`,
-        time: '刚刚'
+        text: t('dashboard.activity.refreshed').replace('{count}', successCount).replace('{total}', directories.length),
+        time: t('dashboard.activity.justNow')
       });
       
       // 重新加载仪表盘数据
@@ -204,6 +205,11 @@ const viewAllFiles = () => {
 // 组件挂载时加载数据
 onMounted(() => {
   loadDashboardData();
+  window.addEventListener('data-updated', loadDashboardData);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('data-updated', loadDashboardData);
 });
 </script>
 
