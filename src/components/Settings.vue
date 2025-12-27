@@ -1,14 +1,35 @@
 <template>
   <div class="settings-container">
-    <h2>应用设置</h2>
+    <h2>{{ t('settings.title') }}</h2>
     
     <div class="settings-grid">
       <!-- 常规设置 -->
       <div class="settings-card">
-        <h3>常规设置</h3>
+        <h3>{{ t('settings.general.title') }}</h3>
         
         <div class="setting-item">
-          <label class="setting-label">应用启动时自动开始监控</label>
+          <label class="setting-label">{{ t('settings.general.language') }}</label>
+          <div class="setting-control">
+            <select v-model="settings.language" @change="handleLanguageChange" class="select-input">
+              <option value="zh-CN">简体中文</option>
+              <option value="en-US">English</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="setting-item">
+          <label class="setting-label">{{ t('settings.general.theme') }}</label>
+          <div class="setting-control">
+            <select v-model="settings.theme" @change="handleThemeChange" class="select-input">
+              <option value="system">{{ t('settings.themes.system') }}</option>
+              <option value="light">{{ t('settings.themes.light') }}</option>
+              <option value="dark">{{ t('settings.themes.dark') }}</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="setting-item">
+          <label class="setting-label">{{ t('settings.general.autoStart') }}</label>
           <div class="setting-control">
             <label class="switch">
               <input type="checkbox" v-model="settings.autoStartMonitoring" />
@@ -18,7 +39,7 @@
         </div>
         
         <div class="setting-item">
-          <label class="setting-label">启动时自动扫描新文件</label>
+          <label class="setting-label">{{ t('settings.general.autoScan') }}</label>
           <div class="setting-control">
             <label class="switch">
               <input type="checkbox" v-model="settings.autoScanNewFiles" />
@@ -28,7 +49,7 @@
         </div>
         
         <div class="setting-item">
-          <label class="setting-label">监控间隔(秒)</label>
+          <label class="setting-label">{{ t('settings.general.interval') }}</label>
           <div class="setting-control">
             <input 
               type="number" 
@@ -43,10 +64,10 @@
       
       <!-- 索引设置 -->
       <div class="settings-card">
-        <h3>索引设置</h3>
+        <h3>{{ t('settings.index.title') }}</h3>
         
         <div class="setting-item">
-          <label class="setting-label">索引文件内容</label>
+          <label class="setting-label">{{ t('settings.index.indexContent') }}</label>
           <div class="setting-control">
             <label class="switch">
               <input type="checkbox" v-model="settings.indexContent" />
@@ -56,35 +77,35 @@
         </div>
         
         <div class="setting-item">
-          <label class="setting-label">内容索引深度</label>
+          <label class="setting-label">{{ t('settings.index.depth') }}</label>
           <div class="setting-control">
             <select v-model="settings.contentIndexDepth" class="select-input">
-              <option value="light">轻量 (仅前几行)</option>
-              <option value="medium">中等 (前100行)</option>
-              <option value="full">完整 (所有内容)</option>
+              <option value="light">{{ t('settings.index.depths.light') }}</option>
+              <option value="medium">{{ t('settings.index.depths.medium') }}</option>
+              <option value="full">{{ t('settings.index.depths.full') }}</option>
             </select>
           </div>
         </div>
         
         <div class="setting-item">
-          <label class="setting-label">忽略模式</label>
+          <label class="setting-label">{{ t('settings.index.ignore') }}</label>
           <div class="setting-control">
             <textarea 
               v-model="settings.ignorePatterns"
-              placeholder="每行一个模式，例如：\n*.pdf\n*.doc\n*.txt\n.* (以.开头的隐藏文件)"
+              :placeholder="t('settings.index.ignorePlaceholder')"
               class="textarea-input"
             ></textarea>
-            <div class="setting-hint">使用glob模式匹配，每行一个</div>
+            <div class="setting-hint">{{ t('settings.index.ignoreHint') }}</div>
           </div>
         </div>
       </div>
       
       <!-- 数据库设置 -->
       <div class="settings-card">
-        <h3>数据库设置</h3>
+        <h3>{{ t('settings.database.title') }}</h3>
         
         <div class="setting-item">
-          <label class="setting-label">数据库位置</label>
+          <label class="setting-label">{{ t('settings.database.location') }}</label>
           <div class="setting-control">
             <input 
               type="text" 
@@ -92,12 +113,12 @@
               readonly
               class="readonly-input"
             />
-            <button class="browse-btn" @click="changeDbPath">更改</button>
+            <button class="browse-btn" @click="changeDbPath">{{ t('settings.database.change') }}</button>
           </div>
         </div>
         
         <div class="setting-item">
-          <label class="setting-label">数据库大小</label>
+          <label class="setting-label">{{ t('settings.database.size') }}</label>
           <div class="setting-control">
             <span class="info-text">{{ databaseSize }}</span>
           </div>
@@ -142,7 +163,7 @@
     
     <!-- 保存按钮 -->
     <div class="settings-footer">
-      <button class="primary-btn" @click="saveSettings">保存设置</button>
+      <button class="primary-btn" @click="handleSaveSettings">保存设置</button>
       <button class="secondary-btn" @click="restoreDefaults">恢复默认设置</button>
     </div>
     
@@ -166,17 +187,11 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import { useSettings } from '../composables/useSettings';
+import { useI18n } from '../composables/useI18n';
 
-// 状态数据
-const settings = ref({
-  autoStartMonitoring: true,
-  autoScanNewFiles: true,
-  monitoringInterval: 60,
-  indexContent: false,
-  contentIndexDepth: 'light',
-  ignorePatterns: '',
-  dbPath: ''
-});
+const { settings, loadSettings, saveSetting } = useSettings();
+const { t, setLocale } = useI18n();
 
 const databaseSize = ref('计算中...');
 const appVersion = ref('1.0.0');
@@ -187,21 +202,32 @@ const systemInfo = ref({
 });
 const showClearDbConfirm = ref(false);
 
-// 方法
-const loadSettings = async () => {
-  try {
-    const response = await window.electronAPI.getSettings();
-    if (response.success) {
-      settings.value = { ...settings.value, ...response.settings };
-    }
-  } catch (error) {
-    console.error('加载设置失败:', error);
-  }
+// Handle immediate changes
+const handleLanguageChange = () => {
+  setLocale(settings.value.language);
 };
+
+const handleThemeChange = () => {
+  // Apply theme immediately to DOM and Main process
+  const theme = settings.value.theme;
+  const root = document.documentElement;
+  if (theme === 'system') {
+    root.removeAttribute('data-theme');
+  } else {
+    root.setAttribute('data-theme', theme);
+  }
+  window.electronAPI.setThemeSource(theme);
+};
+
+// Initial Load
+onMounted(async () => {
+  await loadSettings();
+  loadSystemInfo();
+  loadDatabaseInfo();
+});
 
 const loadSystemInfo = async () => {
   try {
-    // 获取应用版本信息
     const appInfo = await window.electronAPI.getAppInfo();
     if (appInfo.success) {
       appVersion.value = appInfo.version;
@@ -221,18 +247,18 @@ const loadDatabaseInfo = async () => {
     const response = await window.electronAPI.getDatabaseInfo();
     if (response.success) {
       databaseSize.value = formatSize(response.size);
-      settings.value.dbPath = response.path;
+      // Sync dbPath if it's different/empty
+      if (!settings.value.dbPath && response.path) {
+        settings.value.dbPath = response.path;
+      }
     }
   } catch (error) {
     console.error('加载数据库信息失败:', error);
   }
 };
 
-const saveSettings = async () => {
+const handleSaveSettings = async () => {
   try {
-    // 调用新的 update-settings 接口
-    // 使用 JSON.parse(JSON.stringify()) 深拷贝以移除 Vue 的响应式代理，
-    // 避免 Electron 的 IPC 序列化失败 (An object could not be cloned)
     const plainSettings = JSON.parse(JSON.stringify(settings.value));
     const response = await window.electronAPI.updateSettings(plainSettings);
     if (response.success) {
@@ -250,16 +276,20 @@ const openGithub = async () => {
 const restoreDefaults = () => {
   if (confirm('确定要恢复默认设置吗？')) {
     settings.value = {
+      ...settings.value,
       autoStartMonitoring: true,
       autoScanNewFiles: true,
       monitoringInterval: 60,
       indexContent: false,
       contentIndexDepth: 'light',
       ignorePatterns: '',
-      dbPath: settings.value.dbPath
+      language: 'zh-CN',
+      theme: 'system'
     };
-    // 立即保存恢复的默认设置到数据库
-    saveSettings();
+    handleSaveSettings();
+    // Re-apply defaults
+    setLocale('zh-CN');
+    handleThemeChange();
   }
 };
 
@@ -306,7 +336,6 @@ const clearDatabase = async () => {
   }
 };
 
-// 工具函数
 const formatSize = (size) => {
   if (!size) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -318,13 +347,6 @@ const formatSize = (size) => {
   }
   return `${currentSize.toFixed(2)} ${units[unitIndex]}`;
 };
-
-// 组件挂载时加载数据
-onMounted(() => {
-  loadSettings();
-  loadSystemInfo();
-  loadDatabaseInfo();
-});
 </script>
 
 <style scoped>
@@ -335,7 +357,7 @@ onMounted(() => {
 
 h2 {
   margin-bottom: 2rem;
-  color: #2c3e50;
+  color: var(--text-main);
 }
 
 /* 设置网格 */
@@ -348,17 +370,18 @@ h2 {
 
 /* 设置卡片 */
 .settings-card {
-  background: white;
+  background: var(--bg-card);
   border-radius: 12px;
   padding: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
 }
 
 .settings-card h3 {
   margin-top: 0;
   margin-bottom: 1.5rem;
-  color: #2c3e50;
-  border-bottom: 1px solid #e0e0e0;
+  color: var(--text-main);
+  border-bottom: 1px solid var(--border-color);
   padding-bottom: 0.75rem;
 }
 
@@ -371,7 +394,7 @@ h2 {
   display: block;
   margin-bottom: 0.5rem;
   font-weight: 500;
-  color: #333;
+  color: var(--text-main);
 }
 
 .setting-control {
@@ -417,11 +440,11 @@ h2 {
 }
 
 input:checked + .slider {
-  background-color: #2196F3;
+  background-color: var(--primary-color);
 }
 
 input:focus + .slider {
-  box-shadow: 0 0 1px #2196F3;
+  box-shadow: 0 0 1px var(--primary-color);
 }
 
 input:checked + .slider:before {
@@ -435,17 +458,19 @@ input:checked + .slider:before {
 .readonly-input {
   width: 100%;
   padding: 0.75rem 1rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 1rem;
   transition: border-color 0.2s ease;
+  background-color: var(--bg-main);
+  color: var(--text-main);
 }
 
 .number-input:focus,
 .select-input:focus,
 .textarea-input:focus {
   outline: none;
-  border-color: #2196F3;
+  border-color: var(--primary-color);
 }
 
 .textarea-input {
@@ -455,14 +480,15 @@ input:checked + .slider:before {
 }
 
 .readonly-input {
-  background-color: #f9f9f9;
+  background-color: var(--bg-main);
+  opacity: 0.7;
   cursor: not-allowed;
 }
 
 .setting-hint {
   margin-top: 0.5rem;
   font-size: 0.85rem;
-  color: #999;
+  color: var(--text-secondary);
 }
 
 /* 关于信息 */
@@ -478,18 +504,18 @@ input:checked + .slider:before {
 
 .app-name {
   margin: 0 0 0.5rem;
-  color: #2c3e50;
+  color: var(--text-main);
 }
 
 .app-version {
   margin: 0 0 1rem;
-  color: #666;
+  color: var(--text-secondary);
   font-size: 0.9rem;
 }
 
 .app-description {
   margin: 0 0 1rem;
-  color: #999;
+  color: var(--text-secondary);
   font-size: 0.9rem;
 }
 
@@ -506,7 +532,7 @@ input:checked + .slider:before {
 }
 
 .system-info {
-  background-color: #f9f9f9;
+  background-color: var(--bg-main);
   border-radius: 8px;
   padding: 1rem;
 }
@@ -523,16 +549,16 @@ input:checked + .slider:before {
 }
 
 .info-label {
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .info-value {
-  color: #333;
+  color: var(--text-main);
   font-weight: 500;
 }
 
 .info-text {
-  color: #2196F3;
+  color: var(--primary-color);
   font-weight: 500;
 }
 
@@ -548,7 +574,7 @@ input:checked + .slider:before {
   right: 0;
   top: 0;
   padding: 0.75rem 1rem;
-  background: #2196F3;
+  background: var(--primary-color);
   color: white;
   border: none;
   border-radius: 0 8px 8px 0;
@@ -566,21 +592,22 @@ input:checked + .slider:before {
 }
 
 .primary-btn {
-  background: #2196F3;
+  background: var(--primary-color);
   color: white;
 }
 
 .primary-btn:hover {
-  background: #1976D2;
+  background: var(--primary-hover);
 }
 
 .secondary-btn {
-  background: #f5f5f5;
-  color: #333;
+  background: var(--bg-main);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
 }
 
 .secondary-btn:hover {
-  background: #e0e0e0;
+  background: var(--border-color);
 }
 
 .danger-btn {
@@ -615,7 +642,7 @@ input:checked + .slider:before {
 }
 
 .dialog {
-  background: white;
+  background: var(--bg-card);
   border-radius: 12px;
   width: 90%;
   max-width: 500px;
@@ -628,7 +655,7 @@ input:checked + .slider:before {
 
 .dialog-header h3 {
   margin: 0;
-  color: #2c3e50;
+  color: var(--text-main);
 }
 
 .dialog-content {
@@ -637,7 +664,7 @@ input:checked + .slider:before {
 
 .dialog-content p {
   margin-bottom: 1.5rem;
-  color: #333;
+  color: var(--text-main);
 }
 
 .dialog-footer {

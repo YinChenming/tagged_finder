@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 // 暴露API到渲染进程
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -6,6 +6,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getSupportedDragFormats: () => {
       // 返回支持的拖放格式
       return ['text/plain', 'text/uri-list', 'public.file-url'];
+    },
+    // 获取文件路径 (用于解决 contextIsolation 下 File.path 丢失的问题)
+    getPathForFile: (file) => {
+      try {
+        return webUtils.getPathForFile(file);
+      } catch (e) {
+        console.error('Failed to get path for file:', e);
+        return file.path; // Fallback
+      }
     },
     // 配置文件拖放数据
     setupFileDragData: (filePath) => {
@@ -17,12 +26,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
       };
     },
     // 触发原生文件拖拽
-    dragFile: (filePath) => ipcRenderer.send('ondragstart', filePath),
+    dragFile: (filePaths) => ipcRenderer.send('ondragstart', filePaths),
+    // 处理拖放到应用的文件/目录
+    handleDroppedPaths: (paths) => ipcRenderer.invoke('handle-dropped-paths', paths),
   // 目录选择和索引相关
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
   indexDirectory: (directoryPath) => ipcRenderer.invoke('index-directory', directoryPath),
   watchDirectory: (directoryPath) => ipcRenderer.invoke('watch-directory', directoryPath),
   unwatchDirectory: (directoryPath) => ipcRenderer.invoke('unwatch-directory', directoryPath),
+  removeDirectory: (directoryId) => ipcRenderer.invoke('remove-directory', directoryId),
   getWatchedDirectories: () => ipcRenderer.invoke('get-watched-directories'),
   addDirectory: (directoryPath) => ipcRenderer.invoke('add-directory', directoryPath),
   toggleDirectory: (directoryId) => ipcRenderer.invoke('toggle-directory', directoryId),
@@ -35,6 +47,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getFilesCount: (tagId) => ipcRenderer.invoke('get-files-count', tagId),
   openFile: (filePath) => ipcRenderer.invoke('open-file', filePath),
   getFileTags: (fileId) => ipcRenderer.invoke('get-file-tags', fileId),
+  deleteFile: (fileId) => ipcRenderer.invoke('delete-file', fileId),
 
   // 标签相关操作
   getAllTags: () => ipcRenderer.invoke('get-all-tags'),
@@ -49,6 +62,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 设置相关操作
   getSettings: () => ipcRenderer.invoke('get-settings'),
   updateSettings: (settings) => ipcRenderer.invoke('update-settings', settings),
+  setThemeSource: (themeSource) => ipcRenderer.invoke('set-theme-source', themeSource),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
 
   // 系统信息相关

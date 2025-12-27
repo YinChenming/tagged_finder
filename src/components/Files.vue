@@ -1,40 +1,59 @@
 <template>
   <div class="files-container">
-    <h2>文件管理</h2>
+    <h2>{{ t('files.title') }}</h2>
 
     <!-- 搜索和筛选区域 -->
     <div class="search-filter">
-      <div class="search-box">
-        <input
-          type="text"
-          v-model="searchQuery"
-          placeholder="搜索文件名..."
-          class="search-input"
-        />
-        <button class="search-btn">🔍</button>
-      </div>
-      <div class="filter-options">
-        <select v-model="sortBy" class="filter-select">
-          <option value="name">按名称排序</option>
-          <option value="date">按修改日期排序</option>
-          <option value="size">按大小排序</option>
-        </select>
-        <select v-model="fileTypeFilter" class="filter-select">
-          <option value="">所有类型</option>
-          <option value=".pdf">PDF</option>
-          <option value=".docx">Word</option>
-          <option value=".xlsx">Excel</option>
-          <option value=".jpg">图片</option>
-          <option value=".mp4">视频</option>
-        </select>
+      <div class="search-row">
+        <div class="selection-controls">
+          <div class="checkbox-wrapper">
+            <input 
+              type="checkbox" 
+              class="custom-checkbox" 
+              :checked="isAllSelected"
+              :indeterminate="isIndeterminate"
+              @change="toggleSelectAll"
+              :title="t('files.selectAll')"
+            >
+          </div>
+          <button class="selection-btn" @click="invertSelection">{{ t('files.invertSelection') }}</button>
+          <span v-if="selectedFileIds.length > 0" class="selection-count">{{ t('files.selectedCount').replace('{count}', selectedFileIds.length) }}</span>
+        </div>
+
+        <div class="search-box">
+          <input
+            type="text"
+            v-model="searchQuery"
+            :placeholder="t('files.searchPlaceholder')"
+            class="search-input"
+          />
+          <button class="search-btn">🔍</button>
+        </div>
+
         <button 
           class="filter-btn" 
           :class="{ active: showTagFilter }"
           @click="showTagFilter = !showTagFilter"
-          title="高级标签筛选"
+          :title="t('files.advancedFilter')"
         >
-          🏷️ 标签筛选
+          🏷️ {{ t('files.tagFilter') }}
         </button>
+      </div>
+
+      <div class="filter-options">
+        <select v-model="sortBy" class="filter-select">
+          <option value="name">{{ t('files.sortByName') }}</option>
+          <option value="date">{{ t('files.sortByDate') }}</option>
+          <option value="size">{{ t('files.sortBySize') }}</option>
+        </select>
+        <select v-model="fileTypeFilter" class="filter-select">
+          <option value="">{{ t('files.allTypes') }}</option>
+          <option value=".pdf">PDF</option>
+          <option value=".docx">Word</option>
+          <option value=".xlsx">Excel</option>
+          <option value=".jpg">{{ t('files.images') }}</option>
+          <option value=".mp4">{{ t('files.videos') }}</option>
+        </select>
         <button class="refresh-btn" @click="refreshFiles">🔄</button>
       </div>
     </div>
@@ -43,10 +62,10 @@
     <div v-if="showTagFilter" class="tag-filter-panel">
       <div class="filter-row">
         <div class="filter-label-group">
-          <span class="filter-label">包含标签:</span>
+          <span class="filter-label">{{ t('files.includeTags') }}</span>
           <select v-model="includeLogic" class="logic-select">
-            <option value="OR">满足任意一个 (OR)</option>
-            <option value="AND">同时满足所有 (AND)</option>
+            <option value="OR">{{ t('files.matchAny') }}</option>
+            <option value="AND">{{ t('files.matchAll') }}</option>
           </select>
         </div>
         <div class="tag-select-list">
@@ -69,7 +88,7 @@
 
       <div class="filter-row">
         <div class="filter-label-group">
-          <span class="filter-label">排除标签:</span>
+          <span class="filter-label">{{ t('files.excludeTags') }}</span>
           <span class="logic-label">(NOT)</span>
         </div>
         <div class="tag-select-list">
@@ -96,16 +115,34 @@
       <table class="files-table">
         <thead>
           <tr>
-            <th>文件名</th>
-            <th>路径</th>
-            <th>大小</th>
-            <th>修改日期</th>
-            <th>标签</th>
-            <th>操作</th>
+            <th style="width: 40px;"></th>
+            <th>{{ t('files.fileName') }}</th>
+            <th>{{ t('files.path') }}</th>
+            <th>{{ t('files.size') }}</th>
+            <th>{{ t('files.date') }}</th>
+            <th>{{ t('files.tags') }}</th>
+            <th>{{ t('files.actions') }}</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="file in filteredFiles" :key="file.id" class="file-item" draggable="true" @dragstart="handleDragStart($event, file)">
+          <tr 
+            v-for="file in filteredFiles" 
+            :key="file.id" 
+            class="file-item" 
+            :class="{ selected: selectedFileIds.includes(file.id) }"
+            draggable="true" 
+            @dragstart="handleDragStart($event, file)"
+          >
+            <td class="checkbox-cell">
+              <div class="checkbox-wrapper">
+                <input 
+                  type="checkbox" 
+                  class="custom-checkbox"
+                  :checked="selectedFileIds.includes(file.id)"
+                  @change="toggleFileSelection(file.id)"
+                >
+              </div>
+            </td>
             <td class="file-name" @click="openFile(file.path)">
               <span class="file-icon">{{ getFileIcon(file.name) }}</span>
               <span class="file-text">{{ file.name }}</span>
@@ -131,8 +168,8 @@
       <!-- 空状态 -->
       <div v-if="filteredFiles.length === 0" class="empty-state">
         <div class="empty-icon">📁</div>
-        <p>暂无匹配的文件</p>
-        <button class="primary-btn" @click="goToDashboard">去仪表盘添加目录</button>
+        <p>{{ t('files.noFiles') }}</p>
+        <button class="primary-btn" @click="goToDashboard">{{ t('files.goToDashboard') }}</button>
       </div>
     </div>
 
@@ -140,28 +177,28 @@
     <div v-if="showInfoDialog" class="dialog-overlay" @click.self="closeInfoDialog">
       <div class="dialog">
         <div class="dialog-header">
-          <h3>文件信息</h3>
+          <h3>{{ t('files.fileInfo') }}</h3>
           <button class="close-btn" @click="closeInfoDialog">✕</button>
         </div>
         <div class="dialog-content">
           <div class="info-row">
-            <span class="info-label">文件名:</span>
+            <span class="info-label">{{ t('files.infoName') }}</span>
             <span class="info-value">{{ selectedFile.name }}</span>
           </div>
           <div class="info-row">
-            <span class="info-label">完整路径:</span>
+            <span class="info-label">{{ t('files.infoPath') }}</span>
             <span class="info-value">{{ selectedFile.path }}</span>
           </div>
           <div class="info-row">
-            <span class="info-label">大小:</span>
+            <span class="info-label">{{ t('files.infoSize') }}</span>
             <span class="info-value">{{ formatSize(selectedFile.size) }}</span>
           </div>
           <div class="info-row">
-            <span class="info-label">修改日期:</span>
+            <span class="info-label">{{ t('files.infoDate') }}</span>
             <span class="info-value">{{ formatDate(selectedFile.mtime) }}</span>
           </div>
           <div class="info-row">
-            <span class="info-label">索引时间:</span>
+            <span class="info-label">{{ t('files.infoIndexed') }}</span>
             <span class="info-value">{{ formatDate(selectedFile.created_at) }}</span>
           </div>
         </div>
@@ -172,7 +209,7 @@
     <div v-if="showTagDialog" class="dialog-overlay" @click.self="closeTagDialog">
       <div class="dialog">
         <div class="dialog-header">
-          <h3>添加标签</h3>
+          <h3>{{ t('files.addTag') }}</h3>
           <button class="close-btn" @click="closeTagDialog">✕</button>
         </div>
         <div class="dialog-content">
@@ -189,8 +226,8 @@
             </button>
           </div>
           <div class="dialog-footer">
-            <button class="secondary-btn" @click="closeTagDialog">取消</button>
-            <button class="primary-btn" @click="applyTags">应用标签</button>
+            <button class="secondary-btn" @click="closeTagDialog">{{ t('common.cancel') }}</button>
+            <button class="primary-btn" @click="applyTags">{{ t('common.apply') }}</button>
           </div>
         </div>
       </div>
@@ -199,9 +236,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useI18n } from '../composables/useI18n';
 
 // 状态数据
+const { t, locale } = useI18n();
 const files = ref([]);
 const tags = ref([]);
 const searchQuery = ref('');
@@ -212,6 +251,22 @@ const selectedFile = ref({});
 const showTagDialog = ref(false);
 const currentFileId = ref(null);
 const selectedTags = ref([]);
+
+// 多选状态
+const selectedFileIds = ref([]);
+
+// 计算属性：全选状态
+const isAllSelected = computed(() => {
+  if (filteredFiles.value.length === 0) return false;
+  return filteredFiles.value.every(file => selectedFileIds.value.includes(file.id));
+});
+
+// 计算属性：半选状态
+const isIndeterminate = computed(() => {
+  if (filteredFiles.value.length === 0) return false;
+  const selectedVisibleCount = filteredFiles.value.filter(file => selectedFileIds.value.includes(file.id)).length;
+  return selectedVisibleCount > 0 && selectedVisibleCount < filteredFiles.value.length;
+});
 
 // 高级筛选状态
 const showTagFilter = ref(false);
@@ -282,6 +337,29 @@ const filteredFiles = computed(() => {
 
   return result;
 });
+
+const toggleSelectAll = () => {
+  if (isAllSelected.value) {
+    selectedFileIds.value = [];
+  } else {
+    selectedFileIds.value = filteredFiles.value.map(file => file.id);
+  }
+};
+
+const invertSelection = () => {
+  const currentIds = new Set(selectedFileIds.value);
+  const allIds = filteredFiles.value.map(file => file.id);
+  selectedFileIds.value = allIds.filter(id => !currentIds.has(id));
+};
+
+const toggleFileSelection = (fileId) => {
+  const index = selectedFileIds.value.indexOf(fileId);
+  if (index > -1) {
+    selectedFileIds.value.splice(index, 1);
+  } else {
+    selectedFileIds.value.push(fileId);
+  }
+};
 
 // 方法
 const loadFiles = async () => {
@@ -423,8 +501,28 @@ const toggleTag = (tagId) => {
 // 处理文件拖动开始事件
 const handleDragStart = (event, file) => {
   event.preventDefault();
+  
+  // 如果当前拖动的文件没有被选中，则选中它并清空其他选中
+  if (!selectedFileIds.value.includes(file.id)) {
+    selectedFileIds.value = [file.id];
+  }
+  
+  // 获取所有选中文件的路径
+  const filesToDrag = filteredFiles.value
+    .filter(f => selectedFileIds.value.includes(f.id))
+    .map(f => f.path)
+    .filter(p => p); // 过滤空路径
+    
+  // 如果没有选中文件（理论上上面逻辑已处理，这里做防御），则只拖动当前文件
+  if (filesToDrag.length === 0) {
+    filesToDrag.push(file.path);
+  }
+  
+  console.log('拖拽文件:', filesToDrag);
+
   if (window.electronAPI && window.electronAPI.dragFile) {
-    window.electronAPI.dragFile(file.path);
+    // 发送文件路径数组 (确保是普通数组)
+    window.electronAPI.dragFile([...filesToDrag]);
   }
 };
 
@@ -485,10 +583,14 @@ const applyTags = async () => {
 };
 
 const deleteFile = async (fileId, fileName) => {
-  if (confirm(`确定要删除文件 "${fileName}" 吗？`)) {
+  if (confirm(t('files.deleteConfirm').replace('{name}', fileName))) {
     try {
-      // 这里应该调用删除文件的API
-      await loadFiles(); // 重新加载文件列表
+      const result = await window.electronAPI.deleteFile(fileId);
+      if (result.success) {
+        await loadFiles(); // 重新加载文件列表
+      } else {
+        console.error('删除文件失败:', result.error);
+      }
     } catch (error) {
       console.error('删除文件失败:', error);
     }
@@ -552,8 +654,8 @@ const formatDate = (timestamp) => {
   // 如果小于 10000000000，通常是秒，乘以 1000
   const date = new Date(timestamp < 10000000000 ? timestamp * 1000 : timestamp);
   
-  // 使用 'zh-CN' 或 'en-GB' 确保 YYYY-MM-DD 格式
-  return date.toLocaleString('zh-CN', {
+  // 使用当前语言环境
+  return date.toLocaleString(locale.value, {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -571,6 +673,13 @@ const truncatePath = (path, maxLength) => {
 onMounted(() => {
   loadFiles();
   loadTags();
+  window.addEventListener('data-updated', loadFiles);
+  window.addEventListener('data-updated', loadTags);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('data-updated', loadFiles);
+  window.removeEventListener('data-updated', loadTags);
 });
 </script>
 
@@ -594,10 +703,101 @@ h2 {
   gap: 1rem;
 }
 
+.search-row {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
 .search-box {
   display: flex;
   flex: 1;
-  max-width: 400px;
+  min-width: 200px;
+}
+
+/* 复选框样式 */
+.checkbox-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.custom-checkbox {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #e1e8ed;
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.custom-checkbox:checked {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.custom-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 2px;
+  width: 4px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* 半选状态样式 */
+.custom-checkbox:indeterminate {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.custom-checkbox:indeterminate::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 8px;
+  width: 10px;
+  height: 2px;
+  background-color: white;
+}
+
+.selection-controls {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  padding-right: 1rem;
+  border-right: 1px solid #e0e0e0;
+}
+
+.selection-btn {
+  padding: 0.5rem 1rem;
+  background: #fff;
+  border: 1px solid #e1e8ed;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.selection-btn:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: var(--primary-light);
+}
+
+.selection-count {
+  font-size: 0.85rem;
+  color: var(--primary-color);
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .search-input {
@@ -849,6 +1049,19 @@ h2 {
 
 .file-item:hover {
   background-color: var(--primary-light);
+}
+
+.file-item.selected {
+  background-color: var(--primary-light);
+}
+
+.file-item.selected:hover {
+  background-color: #d1f2f3;
+}
+
+.checkbox-cell {
+  padding: 1rem 0.5rem !important;
+  text-align: center;
 }
 
 .file-item td {

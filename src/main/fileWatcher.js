@@ -4,10 +4,11 @@ import path from 'path';
 import dbManager from '../database/index.js';
 
 class FileWatcher {
-  constructor() {
+  constructor(databaseManager = null) {
     this.watchers = new Map();
     this.watcherDirs = new Map(); // 存储 watcher -> directoryId 的映射
     this.isWatching = false;
+    this.dbManager = databaseManager || dbManager;
   }
 
   // 开始监控目录
@@ -174,7 +175,7 @@ class FileWatcher {
       // 如果 dbManager.addFile 没有处理这个问题，我们需要修改它。
       // 暂时我们修改这里，调用一个新的 updateOrAddFile 方法，或者修改 dbManager
       
-      // 让我们修改 dbManager 的 addFile 方法，或者在这里先查询
+      // 让我们修改 dbManager.addFile 方法，或者在这里先查询
       // 由于我无法直接修改 dbManager 的代码（在另一个文件），我在这里做处理
       
       // 但实际上，最好的方式是修改 dbManager.addFile。
@@ -184,7 +185,7 @@ class FileWatcher {
       // 还是去修改 dbManager.addFile 比较好，那是根源。
       // 但为了不打断当前的修改流，我先保持原样，并在下一步去修复 dbManager。
       
-      dbManager.addFile(fileInfo);
+      this.dbManager.addFile(fileInfo);
       console.log(`文件添加: ${filePath} (DirID: ${directoryId})`);
     } catch (error) {
       console.error(`处理文件添加事件失败 ${filePath}:`, error);
@@ -205,7 +206,7 @@ class FileWatcher {
 
       // 更新数据库
       // 同上，需要安全的更新
-      dbManager.addFile(fileInfo);
+      this.dbManager.addFile(fileInfo);
       console.log(`文件修改: ${filePath} (DirID: ${directoryId})`);
     } catch (error) {
       console.error(`处理文件修改事件失败 ${filePath}:`, error);
@@ -216,20 +217,20 @@ class FileWatcher {
   _handleFileDelete(filePath) {
     try {
       // 从数据库中删除文件
-      const file = dbManager.getFileByPath(filePath);
+      const file = this.dbManager.getFileByPath(filePath);
       if (file) {
         // 如果是删除文件，同时也要删除关联的标签
         // dbManager.deleteFile 内部可能已经处理了级联删除（FOREIGN KEY ON DELETE CASCADE）
         // 检查 schema: FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE
         // 所以这里不需要手动删除标签，直接删除文件即可。
         
-        dbManager.deleteFile(file.id);
+        this.dbManager.deleteFile(file.id);
         // 如果需要更新目录统计，deleteFile 后可能需要触发 updateDirectoryStats
         // 目前 deleteFile 只是简单删除，没有更新统计。
         // 为了数据一致性，应该在 deleteFile 中或这里处理统计更新。
         // 由于 dbManager.deleteFile 比较简单，我们可以在这里补充更新逻辑
         if (file.directory_id) {
-          dbManager.updateDirectoryStats(file.directory_id);
+          this.dbManager.updateDirectoryStats(file.directory_id);
         }
       }
       console.log(`文件删除: ${filePath}`);
@@ -268,8 +269,8 @@ class FileWatcher {
       
       // 索引完成后，显式更新一次统计信息
       if (directoryId) {
-        dbManager.updateDirectoryStats(directoryId);
-        dbManager.updateDirectoryScanTime(directoryId);
+        this.dbManager.updateDirectoryStats(directoryId);
+        this.dbManager.updateDirectoryScanTime(directoryId);
       }
       
       return true;
@@ -308,7 +309,7 @@ class FileWatcher {
             };
 
             // 更新数据库
-            dbManager.addFile(fileInfo);
+            this.dbManager.addFile(fileInfo);
           } catch (fileError) {
             console.warn(`无法访问文件 ${fullPath}:`, fileError.message);
           }
@@ -322,4 +323,5 @@ class FileWatcher {
 
 // 导出单例实例
 const fileWatcher = new FileWatcher();
+export { FileWatcher };
 export default fileWatcher;

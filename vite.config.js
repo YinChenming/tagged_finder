@@ -15,5 +15,9 @@ export default defineConfig({
   server: {
     port: 5173
   },
-  base: './' // 使用相对路径，确保在file://协议下正确加载资源
+  base: './', // 使用相对路径，确保在file://协议下正确加载资源
+  test: {
+    environment: 'jsdom',
+    globals: true
+  }
 })

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, nativeImage } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, nativeImage } from 'electron';
 import path from 'path';
 import url from 'url';
 import fs from 'fs';
@@ -19,7 +19,10 @@ let mainWindow;
 async function initializeApp() {
   // 初始化数据库
   try {
-    dbManager.init();
+    const db = dbManager.init();
+    if (!db) {
+      throw new Error('Database initialization returned null. Please check native module compilation.');
+    }
     
     // 恢复监控已保存的目录
     const directories = dbManager.getAllDirectories();
@@ -109,27 +112,141 @@ function createWindow() {
 // 注册进程间通信事件处理程序
 function registerIpcHandlers() {
   // 处理原生文件拖放
-  ipcMain.on('ondragstart', async (event, filePath) => {
+  ipcMain.on('ondragstart', async (event, files) => {
     try {
-      // 尝试获取文件图标
-      const icon = await app.getFileIcon(filePath);
+      console.log('收到拖放请求:', files);
       
-      // 使用 startDrag 触发原生 OS 级拖放
-      event.sender.startDrag({
-        file: filePath,
+      // 规范化文件路径
+      let normalizedFiles = files;
+      if (Array.isArray(files)) {
+        normalizedFiles = files.map(f => path.normalize(f));
+        // 如果只有一个文件，转换为字符串，以提高兼容性
+        if (normalizedFiles.length === 1) {
+          normalizedFiles = normalizedFiles[0];
+        }
+      } else if (typeof files === 'string') {
+        normalizedFiles = path.normalize(files);
+      }
+
+      // 获取图标使用的路径
+      let icon = nativeImage.createEmpty();
+      
+      try {
+        // 只有单文件时才获取图标，多文件时为了稳定性（和避免Windows下的潜在问题）暂时使用空图标或默认图标
+        // 或者：如果是多文件，也尝试获取第一个文件的图标，但如果不成功则忽略
+        const iconPath = Array.isArray(normalizedFiles) ? normalizedFiles[0] : normalizedFiles;
+        icon = await app.getFileIcon(iconPath);
+      } catch (iconError) {
+        console.warn('获取文件图标失败，将使用默认图标:', iconError);
+      }
+      
+      console.log('开始拖放, 文件:', normalizedFiles);
+      
+      // 构造 startDrag 参数
+      const dragOptions = {
         icon: icon
-      });
+      };
+
+      // 根据是单个文件还是多个文件，设置 file 或 files 属性
+      if (Array.isArray(normalizedFiles)) {
+        dragOptions.files = normalizedFiles;
+      } else {
+        dragOptions.file = normalizedFiles;
+      }
+
+      // 使用 startDrag 触发原生 OS 级拖放
+      event.sender.startDrag(dragOptions);
     } catch (error) {
       console.error('启动拖放失败:', error);
       // 降级尝试：不带图标
       try {
-        event.sender.startDrag({
-          file: filePath,
+        // 确保 fallback 也使用处理过的 files
+        const fallbackFiles = Array.isArray(files) ? files : [files];
+        // 如果之前处理失败，尝试最原始的方式，但确保是 path.normalize 过的
+        const safeFiles = fallbackFiles.map(f => path.normalize(f));
+        
+        // 再次尝试，这次如果是一个文件则传字符串
+        const finalFiles = safeFiles.length === 1 ? safeFiles[0] : safeFiles;
+
+        const fallbackOptions = {
           icon: nativeImage.createEmpty()
-        });
+        };
+
+        if (Array.isArray(finalFiles)) {
+          fallbackOptions.files = finalFiles;
+        } else {
+          fallbackOptions.file = finalFiles;
+        }
+
+        event.sender.startDrag(fallbackOptions);
       } catch (e) {
         console.error('降级拖放也失败:', e);
       }
+    }
+  });
+
+  // 处理拖放的文件和目录
+  ipcMain.handle('handle-dropped-paths', async (event, paths) => {
+    try {
+      const results = {
+        files: 0,
+        directories: 0,
+        errors: []
+      };
+
+      const filesToAdd = [];
+
+      for (const itemPath of paths) {
+        try {
+          const stats = await fs.promises.stat(itemPath);
+          if (stats.isDirectory()) {
+            // 处理目录：复用 add-directory 逻辑
+            // 但这里我们不返回完整的 directory 对象，而是只返回成功与否
+            try {
+              const dbResult = dbManager.addDirectory(itemPath, true);
+              if (dbResult && dbResult.id) {
+                const directoryId = dbResult.id;
+                await fileWatcher.indexDirectory(itemPath, directoryId);
+                await fileWatcher.watchDirectory(itemPath, directoryId);
+                results.directories++;
+              }
+            } catch (dirError) {
+              console.error(`添加目录失败 ${itemPath}:`, dirError);
+              results.errors.push(`Failed to add directory ${path.basename(itemPath)}: ${dirError.message}`);
+            }
+          } else if (stats.isFile()) {
+            filesToAdd.push(itemPath);
+          }
+        } catch (statError) {
+          console.error(`无法访问路径 ${itemPath}:`, statError);
+          results.errors.push(`Cannot access ${path.basename(itemPath)}`);
+        }
+      }
+
+      // 批量添加文件
+      if (filesToAdd.length > 0) {
+        try {
+          let virtualDirId = dbManager.getVirtualDirectoryId();
+          if (!virtualDirId) {
+            dbManager.ensureVirtualDirectory();
+            virtualDirId = dbManager.getVirtualDirectoryId();
+          }
+
+          if (virtualDirId) {
+            await fileWatcher.watchFiles(filesToAdd, virtualDirId);
+            dbManager.updateDirectoryStats(virtualDirId);
+            results.files = filesToAdd.length;
+          }
+        } catch (fileError) {
+          console.error('添加文件失败:', fileError);
+          results.errors.push(`Failed to add files: ${fileError.message}`);
+        }
+      }
+
+      return { success: true, results };
+    } catch (error) {
+      console.error('处理拖放失败:', error);
+      return { success: false, error: error.message };
     }
   });
 
@@ -252,6 +369,41 @@ function registerIpcHandlers() {
     }
   });
 
+  // 删除目录
+  ipcMain.handle('remove-directory', async (event, directoryId) => {
+    try {
+      // 1. 获取目录信息
+      const directory = dbManager.getDirectoryById(directoryId);
+      if (!directory) {
+        return { success: false, error: '目录不存在' };
+      }
+
+      // 2. 停止监控
+      if (directory.is_watching) {
+        await fileWatcher.unwatchDirectory(directory.path);
+      }
+
+      // 3. 从数据库中删除（会级联删除文件和标签关联）
+      dbManager.deleteDirectory(directoryId);
+
+      return { success: true };
+    } catch (error) {
+      console.error('删除目录失败:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // 删除文件
+  ipcMain.handle('delete-file', async (event, fileId) => {
+    try {
+      dbManager.deleteFile(fileId);
+      return { success: true };
+    } catch (error) {
+      console.error('删除文件失败:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
   // 扫描目录IPC处理程序
   ipcMain.handle('scan-directory', async (event, directoryId) => {
     try {
@@ -282,7 +434,11 @@ function registerIpcHandlers() {
   // 索引目录
   ipcMain.handle('index-directory', async (event, directoryPath) => {
     try {
-      const success = await fileWatcher.indexDirectory(directoryPath);
+      // 确保目录在数据库中并获取ID
+      const dirResult = dbManager.addDirectory(directoryPath, true);
+      const directoryId = dirResult ? dirResult.id : null;
+      
+      const success = await fileWatcher.indexDirectory(directoryPath, directoryId);
       return { success };
     } catch (error) {
       return { success: false, error: error.message };
@@ -292,7 +448,11 @@ function registerIpcHandlers() {
   // 开始监控目录
   ipcMain.handle('watch-directory', async (event, directoryPath) => {
     try {
-      const success = await fileWatcher.watchDirectory(directoryPath);
+      // 确保目录在数据库中并获取ID
+      const dirResult = dbManager.addDirectory(directoryPath, true);
+      const directoryId = dirResult ? dirResult.id : null;
+      
+      const success = await fileWatcher.watchDirectory(directoryPath, directoryId);
       return { success };
     } catch (error) {
       return { success: false, error: error.message };
@@ -527,6 +687,17 @@ function registerIpcHandlers() {
       };
     } catch (error) {
       console.error('获取数据库信息失败:', error);
+      return { error: error.message };
+    }
+  });
+
+  // 设置主题源
+  ipcMain.handle('set-theme-source', (event, themeSource) => {
+    try {
+      nativeTheme.themeSource = themeSource;
+      return { success: true };
+    } catch (error) {
+      console.error('设置主题失败:', error);
       return { error: error.message };
     }
   });

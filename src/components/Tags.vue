@@ -1,6 +1,6 @@
 <template>
   <div class="tags-container">
-    <h2>标签管理</h2>
+    <h2>{{ t('tags.title') }}</h2>
 
     <!-- 标签搜索与添加 -->
     <div class="tag-controls">
@@ -8,7 +8,7 @@
         <input
           type="text"
           v-model="searchQuery"
-          placeholder="搜索标签..."
+          :placeholder="t('tags.search.placeholder')"
           class="search-input"
         />
       </div>
@@ -17,8 +17,9 @@
         <input
           type="text"
           v-model="newTagName"
-          placeholder="输入新标签名称..."
+          :placeholder="t('tags.add.placeholder')"
           class="tag-input"
+          @keyup.enter="addNewTag"
         />
         <div class="color-picker-wrapper" @click.stop="showColorPalette = !showColorPalette">
           <div class="color-preview" :style="{ backgroundColor: newTagColor }"></div>
@@ -36,7 +37,7 @@
             
             <div class="custom-color-row">
               <button class="custom-color-btn" @click="triggerCustomPicker">
-                自定义颜色
+                {{ t('tags.add.customColor') }}
               </button>
               <input 
                 type="color" 
@@ -48,7 +49,7 @@
             </div>
           </div>
         </div>
-        <button class="add-tag-btn" @click="addNewTag">添加标签</button>
+        <button class="add-tag-btn" @click="addNewTag">{{ t('tags.add.button') }}</button>
       </div>
     </div>
 
@@ -63,28 +64,28 @@
         <div class="tag-info">
           <h3 class="tag-name">{{ tag.name }}</h3>
           <div class="tag-meta">
-            <span class="file-count">{{ getFilesCount(tag.id) }} 个文件</span>
+            <span class="file-count">{{ t('tags.list.fileCount').replace('{count}', getFilesCount(tag.id)) }}</span>
             <span class="creation-date">{{ formatDate(tag.created_at) }}</span>
           </div>
         </div>
         <div class="tag-actions">
-          <button class="view-btn" @click="viewFilesByTag(tag)">查看文件</button>
-          <button class="edit-btn" @click="editTag(tag)">编辑</button>
-          <button class="delete-btn" @click="confirmDelete(tag)">删除</button>
+          <button class="view-btn" @click="viewFilesByTag(tag)">{{ t('tags.actions.viewFiles') }}</button>
+          <button class="edit-btn" @click="editTag(tag)">{{ t('tags.actions.edit') }}</button>
+          <button class="delete-btn" @click="confirmDelete(tag)">{{ t('tags.actions.delete') }}</button>
         </div>
       </div>
 
       <!-- 空状态 -->
       <div v-if="tags.length === 0" class="empty-state">
         <div class="empty-icon">🏷️</div>
-        <p>暂无标签，请创建第一个标签</p>
+        <p>{{ t('tags.empty') }}</p>
       </div>
     </div>
 
     <!-- 按标签筛选的文件列表 -->
     <div v-if="activeTag" class="tagged-files-container">
       <div class="tagged-files-header">
-        <h3>标签为 "{{ activeTag.name }}" 的文件</h3>
+        <h3>{{ t('tags.files.title').replace('{name}', activeTag.name) }}</h3>
         <button class="close-btn" @click="closeTaggedFiles">✕</button>
       </div>
       <div class="tagged-files-list">
@@ -106,7 +107,7 @@
         </div>
 
         <div v-if="taggedFiles.length === 0" class="no-files">
-          <p>此标签下暂无文件</p>
+          <p>{{ t('tags.files.empty') }}</p>
         </div>
       </div>
     </div>
@@ -115,12 +116,12 @@
     <div v-if="showEditDialog" class="dialog-overlay" @click.self="closeEditDialog">
       <div class="dialog">
         <div class="dialog-header">
-          <h3>编辑标签</h3>
+          <h3>{{ t('tags.edit.title') }}</h3>
           <button class="close-btn" @click="closeEditDialog">✕</button>
         </div>
         <div class="dialog-content">
           <div class="form-group">
-            <label>标签名称</label>
+            <label>{{ t('tags.edit.name') }}</label>
             <input
               type="text"
               v-model="editingTag.name"
@@ -128,7 +129,7 @@
             />
           </div>
           <div class="form-group">
-            <label>标签颜色</label>
+            <label>{{ t('tags.edit.color') }}</label>
             <input
               type="color"
               v-model="editingTag.color"
@@ -136,8 +137,8 @@
             />
           </div>
           <div class="dialog-footer">
-            <button class="secondary-btn" @click="closeEditDialog">取消</button>
-            <button class="primary-btn" @click="saveTagChanges">保存更改</button>
+            <button class="secondary-btn" @click="closeEditDialog">{{ t('common.cancel') }}</button>
+            <button class="primary-btn" @click="saveTagChanges">{{ t('tags.edit.save') }}</button>
           </div>
         </div>
       </div>
@@ -147,14 +148,14 @@
     <div v-if="showDeleteConfirm" class="dialog-overlay" @click.self="cancelDelete">
       <div class="dialog">
         <div class="dialog-header">
-          <h3>确认删除</h3>
+          <h3>{{ t('tags.delete.title') }}</h3>
         </div>
         <div class="dialog-content">
-          <p>确定要删除标签 "{{ tagToDelete?.name }}" 吗？</p>
-          <p class="warning-text">此操作将移除所有与此标签关联的文件标记。</p>
+          <p>{{ t('tags.delete.message').replace('{name}', tagToDelete?.name) }}</p>
+          <p class="warning-text">{{ t('tags.delete.warning') }}</p>
           <div class="dialog-footer">
-            <button class="secondary-btn" @click="cancelDelete">取消</button>
-            <button class="danger-btn" @click="deleteTag">删除</button>
+            <button class="secondary-btn" @click="cancelDelete">{{ t('common.cancel') }}</button>
+            <button class="danger-btn" @click="deleteTag">{{ t('tags.actions.delete') }}</button>
           </div>
         </div>
       </div>
@@ -164,8 +165,10 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue';
+import { useI18n } from '../composables/useI18n';
 
 // 状态管理
+const { t } = useI18n();
 const tags = ref([]);
 const searchQuery = ref('');
 const newTagName = ref('');
@@ -284,7 +287,7 @@ const getFilesCount = (tagId) => {
 
 const addNewTag = async () => {
   if (!newTagName.value.trim()) {
-    alert('请输入标签名称');
+    alert(t('common.alerts.tagRequired'));
     return;
   }
 
@@ -317,7 +320,7 @@ const closeEditDialog = () => {
 
 const saveTagChanges = async () => {
   if (!editingTag.value.name.trim()) {
-    alert('请输入标签名称');
+    alert(t('common.alerts.tagRequired'));
     return;
   }
 
