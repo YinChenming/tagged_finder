@@ -302,35 +302,10 @@ const toggleTag = (tagId) => {
 
 // 处理文件拖动开始事件
 const handleDragStart = (event, file) => {
-  // 设置拖动效果为复制
-  event.dataTransfer.effectAllowed = 'copy';
-
-  try {
-    // 使用Electron API配置拖放数据
-    if (window.electronAPI && window.electronAPI.setupFileDragData) {
-      const dragData = window.electronAPI.setupFileDragData(file.path);
-
-      // 设置各种格式的拖放数据
-      event.dataTransfer.setData('text/plain', dragData.plainText);
-      event.dataTransfer.setData('text/uri-list', dragData.uriList);
-
-      // 对于macOS，使用特殊格式
-      if (process.platform === 'darwin') {
-        event.dataTransfer.setData('public.file-url', dragData.fileUrl);
-      }
-    } else {
-      // 降级方案：直接设置数据
-      event.dataTransfer.setData('text/plain', file.path);
-      event.dataTransfer.setData('text/uri-list', `file://${file.path}`);
-    }
-  } catch (error) {
-    console.error('设置拖放数据失败:', error);
-    // 确保至少有基本的文本数据
-    event.dataTransfer.setData('text/plain', file.path);
+  event.preventDefault();
+  if (window.electronAPI && window.electronAPI.dragFile) {
+    window.electronAPI.dragFile(file.path);
   }
-
-  // 添加样式提示用户正在拖动
-  event.target.classList.add('dragging');
 };
 
 // 添加拖放相关的样式调整
@@ -341,23 +316,49 @@ const handleDragEnd = (event) => {
 
 const applyTags = async () => {
   try {
+    const currentFileIdValue = currentFileId.value;
     // 首先获取文件当前已有的标签
-    const currentTagsResponse = await window.electronAPI.getFileTags(currentFileId.value);
+    const currentTagsResponse = await window.electronAPI.getFileTags(currentFileIdValue);
     const currentTagIds = currentTagsResponse.success ? currentTagsResponse.tags.map(t => t.id) : [];
 
     // 找出需要添加的标签（选中但当前没有的）
     const tagsToAdd = selectedTags.value.filter(tagId => !currentTagIds.includes(tagId));
 
+    // 找出需要移除的标签（当前有但未选中的）
+    const tagsToRemove = currentTagIds.filter(tagId => !selectedTags.value.includes(tagId));
+
     // 添加新标签
     for (const tagId of tagsToAdd) {
       await window.electronAPI.tagFile({
-        fileId: currentFileId.value,
+        fileId: currentFileIdValue,
         tagId
       });
     }
 
+    // 移除标签
+    for (const tagId of tagsToRemove) {
+      await window.electronAPI.untagFile({
+        fileId: currentFileIdValue,
+        tagId
+      });
+    }
+
+    // 关闭对话框
     closeTagDialog();
-    await loadFileTags(currentFileId.value); // 更新当前文件的标签
+    
+    // 立即更新当前文件的标签缓存
+    // 重新从后端获取最新标签
+    const response = await window.electronAPI.getFileTags(currentFileIdValue);
+    if (response.success) {
+      // 深度更新：直接赋值给新的对象引用，确保 Vue 检测到变化
+      // 并且确保 fileTagsMap.value 的引用也发生变化
+      const newMap = { ...fileTagsMap.value };
+      newMap[currentFileIdValue] = response.tags;
+      fileTagsMap.value = newMap;
+      
+      // 强制更新，虽然通常不需要，但为了保险起见
+      // 如果还不行，我们可以使用 triggerRef(fileTagsMap)
+    }
   } catch (error) {
     console.error('应用标签失败:', error);
   }

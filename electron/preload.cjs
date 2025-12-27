@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         fileUrl: `file://${filePath}`
       };
     },
+    // 触发原生文件拖拽
+    dragFile: (filePath) => ipcRenderer.send('ondragstart', filePath),
   // 目录选择和索引相关
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
   indexDirectory: (directoryPath) => ipcRenderer.invoke('index-directory', directoryPath),
@@ -25,6 +27,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   addDirectory: (directoryPath) => ipcRenderer.invoke('add-directory', directoryPath),
   toggleDirectory: (directoryId) => ipcRenderer.invoke('toggle-directory', directoryId),
   scanDirectory: (directoryId) => ipcRenderer.invoke('scan-directory', directoryId),
+  selectFiles: () => ipcRenderer.invoke('select-files'),
+  addWatchedFiles: (filePaths) => ipcRenderer.invoke('add-watched-files', filePaths),
 
   // 文件相关操作
   getAllFiles: () => ipcRenderer.invoke('get-all-files'),
@@ -38,6 +42,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateTag: (tagInfo) => ipcRenderer.invoke('update-tag', tagInfo),
   deleteTag: (tagId) => ipcRenderer.invoke('delete-tag', tagId),
   tagFile: (fileTagInfo) => ipcRenderer.invoke('tag-file', fileTagInfo),
+  untagFile: (fileTagInfo) => ipcRenderer.invoke('untag-file', fileTagInfo),
   getFilesByTag: (tagId) => ipcRenderer.invoke('get-files-by-tag', tagId),
   isFileTagged: (fileTagInfo) => ipcRenderer.invoke('is-file-tagged', fileTagInfo),
 
@@ -47,6 +52,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 系统信息相关
   getSystemInfo: () => ipcRenderer.invoke('get-system-info'),
+  getAppInfo: () => ipcRenderer.invoke('get-app-info'),
 
   // 数据库信息相关
   getDatabaseInfo: () => ipcRenderer.invoke('get-database-info'),

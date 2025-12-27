@@ -112,10 +112,41 @@ class DatabaseManager {
 
       // 添加默认设置
       this.addDefaultSettings();
+
+      // 确保存在默认的"单文件监视"虚拟目录
+      this.ensureVirtualDirectory();
     } catch (error) {
       console.error('创建表失败:', error);
       throw error;
     }
+  }
+
+  // 确保存在虚拟目录
+  ensureVirtualDirectory() {
+    try {
+      const VIRTUAL_DIR_PATH = 'virtual:watched_files';
+      const VIRTUAL_DIR_NAME = 'Default Watched Files';
+      
+      const stmt = this.db.prepare('SELECT id FROM directories WHERE path = ?');
+      const existing = stmt.get(VIRTUAL_DIR_PATH);
+      
+      if (!existing) {
+        this.db.prepare(
+          'INSERT INTO directories (path, name, is_watching) VALUES (?, ?, ?)'
+        ).run(VIRTUAL_DIR_PATH, VIRTUAL_DIR_NAME, 1);
+        console.log('创建默认虚拟目录成功');
+      }
+    } catch (error) {
+      console.error('创建默认虚拟目录失败:', error);
+    }
+  }
+
+  // 获取虚拟目录ID
+  getVirtualDirectoryId() {
+    const VIRTUAL_DIR_PATH = 'virtual:watched_files';
+    const stmt = this.db.prepare('SELECT id FROM directories WHERE path = ?');
+    const dir = stmt.get(VIRTUAL_DIR_PATH);
+    return dir ? dir.id : null;
   }
 
   // 关闭数据库连接
@@ -135,6 +166,59 @@ class DatabaseManager {
     return this.db;
   }
 
+  // 获取设置
+  getSettings() {
+    try {
+      const rows = this.db.prepare('SELECT key, value FROM settings').all();
+      const settings = {};
+      rows.forEach(row => {
+        // 转换键名：snake_case -> camelCase
+        const key = row.key.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+        
+        // 转换值类型
+        let value = row.value;
+        if (value === 'true') value = true;
+        else if (value === 'false') value = false;
+        else if (!isNaN(value) && value.trim() !== '') value = Number(value);
+        
+        // 特殊处理 ignorePatterns，它在数据库中是 ignore_patterns，可能是多行字符串
+        // 我们的转换逻辑已经处理了 key，现在只需要确保 value 正确
+        // 之前存的是字符串，取出来也是字符串，无需额外处理
+        
+        settings[key] = value;
+      });
+      return settings;
+    } catch (error) {
+      console.error('获取设置失败:', error);
+      return {};
+    }
+  }
+
+  // 更新设置
+  updateSettings(settings) {
+    try {
+      const stmt = this.db.prepare(
+        'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)'
+      );
+
+      const transaction = this.db.transaction((settingsObj) => {
+        for (const [key, value] of Object.entries(settingsObj)) {
+          // 转换键名：camelCase -> snake_case
+          const dbKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+          // 转换值为字符串
+          const dbValue = String(value);
+          stmt.run(dbKey, dbValue);
+        }
+      });
+
+      transaction(settings);
+      return true;
+    } catch (error) {
+      console.error('更新设置失败:', error);
+      return false;
+    }
+  }
+
   // 添加默认设置
   addDefaultSettings() {
     try {
@@ -144,7 +228,7 @@ class DatabaseManager {
         'monitoring_interval': '60',
         'index_content': 'false',
         'content_index_depth': 'light',
-        'ignore_patterns': '*.tmp\n.DS_Store\nThumbs.db\n*.bak\nnode_modules/\n.git/\n__pycache__/'
+        'ignore_patterns': ''
       };
 
       for (const [key, value] of Object.entries(settings)) {
@@ -157,14 +241,26 @@ class DatabaseManager {
     }
   }
 
-  // 添加文件
+  // 添加文件（如果存在则更新，保留ID以维持关联）
   addFile(file) {
     try {
-      const stmt = this.db.prepare(
-        'INSERT OR REPLACE INTO files (path, name, size, mtime, updated_at, directory_id) VALUES (?, ?, ?, ?, ?, ?)'
-      );
+      // 检查文件是否已存在
+      const existing = this.db.prepare('SELECT id FROM files WHERE path = ?').get(file.path);
 
-      const result = stmt.run(file.path, file.name, file.size || 0, file.mtime || 0, Date.now() / 1000, file.directory_id || null);
+      let result;
+      if (existing) {
+        // 更新现有记录
+        const stmt = this.db.prepare(
+          'UPDATE files SET name = ?, size = ?, mtime = ?, updated_at = ?, directory_id = ? WHERE id = ?'
+        );
+        result = stmt.run(file.name, file.size || 0, file.mtime || 0, Date.now() / 1000, file.directory_id || null, existing.id);
+      } else {
+        // 插入新记录
+        const stmt = this.db.prepare(
+          'INSERT INTO files (path, name, size, mtime, updated_at, directory_id) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        result = stmt.run(file.path, file.name, file.size || 0, file.mtime || 0, Date.now() / 1000, file.directory_id || null);
+      }
 
       // 更新目录的文件数量和总大小
       if (file.directory_id) {
@@ -173,7 +269,7 @@ class DatabaseManager {
 
       return result;
     } catch (error) {
-      console.error('添加文件失败:', error);
+      console.error('添加/更新文件失败:', error);
       return null;
     }
   }
@@ -182,6 +278,12 @@ class DatabaseManager {
   getFileByPath(path) {
     const stmt = this.db.prepare('SELECT * FROM files WHERE path = ?');
     return stmt.get(path);
+  }
+
+  // 根据ID获取文件
+  getFileById(id) {
+    const stmt = this.db.prepare('SELECT * FROM files WHERE id = ?');
+    return stmt.get(id);
   }
 
   // 更新目录统计信息
@@ -390,11 +492,15 @@ class DatabaseManager {
   }
 
   // 获取数据库大小（字节）
-  getDatabaseSize(dbPath) {
+  getDatabaseSize() {
     try {
-      const fs = require('fs');
-      const stats = fs.statSync(dbPath);
-      return stats.size;
+      // 直接使用 fs.statSync 获取 dbPath 的大小
+      // dbPath 是在模块顶部定义的常量，指向真实的数据库文件
+      if (fs.existsSync(dbPath)) {
+        const stats = fs.statSync(dbPath);
+        return stats.size;
+      }
+      return 0;
     } catch (error) {
       console.error('获取数据库大小失败:', error);
       return 0;

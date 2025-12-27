@@ -108,13 +108,21 @@ const loadDashboardData = async () => {
     // 获取监控目录
     const dirsResponse = await window.electronAPI.getWatchedDirectories();
     if (dirsResponse.success) {
+      // 过滤掉虚拟目录（虽然前端Directories组件也过滤了，但这里确保一致性）
+      // 注意：electronAPI.getWatchedDirectories 已经由后端过滤了虚拟目录
+      // 所以这里不需要额外处理，直接赋值即可
       watchedDirs.value = dirsResponse.directories;
     } else {
       console.error('获取监控目录失败:', dirsResponse.error);
     }
     
-    // 模拟数据库大小
-    dbSize.value = Math.floor(Math.random() * 1024 * 1024); // 模拟1MB以内的数据库大小
+    // 获取数据库信息（用于获取真实大小）
+    const dbInfoResponse = await window.electronAPI.getDatabaseInfo();
+    if (dbInfoResponse && !dbInfoResponse.error) {
+       dbSize.value = dbInfoResponse.size;
+    } else {
+       dbSize.value = 0;
+    }
   } catch (error) {
     console.error('加载仪表盘数据失败:', error);
   }
