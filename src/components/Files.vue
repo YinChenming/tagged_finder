@@ -27,7 +27,67 @@
           <option value=".jpg">图片</option>
           <option value=".mp4">视频</option>
         </select>
+        <button 
+          class="filter-btn" 
+          :class="{ active: showTagFilter }"
+          @click="showTagFilter = !showTagFilter"
+          title="高级标签筛选"
+        >
+          🏷️ 标签筛选
+        </button>
         <button class="refresh-btn" @click="refreshFiles">🔄</button>
+      </div>
+    </div>
+
+    <!-- 高级标签筛选面板 -->
+    <div v-if="showTagFilter" class="tag-filter-panel">
+      <div class="filter-row">
+        <div class="filter-label-group">
+          <span class="filter-label">包含标签:</span>
+          <select v-model="includeLogic" class="logic-select">
+            <option value="OR">满足任意一个 (OR)</option>
+            <option value="AND">同时满足所有 (AND)</option>
+          </select>
+        </div>
+        <div class="tag-select-list">
+          <span 
+            v-for="tag in tags" 
+            :key="'inc-' + tag.id"
+            class="tag-chip"
+            :class="{ selected: selectedIncludeTags.includes(tag.id) }"
+            :style="{ 
+              backgroundColor: selectedIncludeTags.includes(tag.id) ? tag.color : '#f5f5f5',
+              borderColor: tag.color,
+              color: selectedIncludeTags.includes(tag.id) ? '#fff' : '#666'
+            }"
+            @click="toggleIncludeTag(tag.id)"
+          >
+            {{ tag.name }}
+          </span>
+        </div>
+      </div>
+
+      <div class="filter-row">
+        <div class="filter-label-group">
+          <span class="filter-label">排除标签:</span>
+          <span class="logic-label">(NOT)</span>
+        </div>
+        <div class="tag-select-list">
+          <span 
+            v-for="tag in tags" 
+            :key="'exc-' + tag.id"
+            class="tag-chip"
+            :class="{ selected: selectedExcludeTags.includes(tag.id) }"
+            :style="{ 
+              backgroundColor: selectedExcludeTags.includes(tag.id) ? '#ff5252' : '#f5f5f5',
+              borderColor: '#ff5252',
+              color: selectedExcludeTags.includes(tag.id) ? '#fff' : '#666'
+            }"
+            @click="toggleExcludeTag(tag.id)"
+          >
+            {{ tag.name }}
+          </span>
+        </div>
       </div>
     </div>
 
@@ -153,6 +213,12 @@ const showTagDialog = ref(false);
 const currentFileId = ref(null);
 const selectedTags = ref([]);
 
+// 高级筛选状态
+const showTagFilter = ref(false);
+const selectedIncludeTags = ref([]);
+const selectedExcludeTags = ref([]);
+const includeLogic = ref('OR'); // 'AND' or 'OR'
+
 // 计算属性
 const filteredFiles = computed(() => {
   let result = [...files.value];
@@ -170,6 +236,34 @@ const filteredFiles = computed(() => {
     result = result.filter(file =>
       file.name.endsWith(fileTypeFilter.value)
     );
+  }
+
+  // 高级标签过滤
+  if (selectedIncludeTags.value.length > 0 || selectedExcludeTags.value.length > 0) {
+    result = result.filter(file => {
+      const fileTags = getFileTags(file.id).map(t => t.id);
+      
+      // 排除逻辑 (NOT)
+      if (selectedExcludeTags.value.length > 0) {
+        const hasExcluded = selectedExcludeTags.value.some(tagId => fileTags.includes(tagId));
+        if (hasExcluded) return false;
+      }
+
+      // 包含逻辑
+      if (selectedIncludeTags.value.length > 0) {
+        if (includeLogic.value === 'AND') {
+          // 必须包含所有选中标签
+          const hasAll = selectedIncludeTags.value.every(tagId => fileTags.includes(tagId));
+          if (!hasAll) return false;
+        } else {
+          // 包含任意一个选中标签 (OR)
+          const hasAny = selectedIncludeTags.value.some(tagId => fileTags.includes(tagId));
+          if (!hasAny) return false;
+        }
+      }
+      
+      return true;
+    });
   }
 
   // 排序
@@ -244,6 +338,32 @@ const loadAllFileTags = async () => {
     fileTagsMap.value = tagsMap;
   } catch (error) {
     console.error('加载所有文件标签失败:', error);
+  }
+};
+
+const toggleIncludeTag = (id) => {
+  // 如果在排除列表中，先移除
+  if (selectedExcludeTags.value.includes(id)) {
+    selectedExcludeTags.value = selectedExcludeTags.value.filter(t => t !== id);
+  }
+  
+  if (selectedIncludeTags.value.includes(id)) {
+    selectedIncludeTags.value = selectedIncludeTags.value.filter(t => t !== id);
+  } else {
+    selectedIncludeTags.value.push(id);
+  }
+};
+
+const toggleExcludeTag = (id) => {
+  // 如果在包含列表中，先移除
+  if (selectedIncludeTags.value.includes(id)) {
+    selectedIncludeTags.value = selectedIncludeTags.value.filter(t => t !== id);
+  }
+
+  if (selectedExcludeTags.value.includes(id)) {
+    selectedExcludeTags.value = selectedExcludeTags.value.filter(t => t !== id);
+  } else {
+    selectedExcludeTags.value.push(id);
   }
 };
 
@@ -428,8 +548,18 @@ const formatSize = (size) => {
 
 const formatDate = (timestamp) => {
   if (!timestamp) return '';
-  const date = new Date(timestamp * 1000);
-  return date.toLocaleString();
+  // timestamp 可能是秒（Python/Unix常见）或毫秒（JS常见）
+  // 如果小于 10000000000，通常是秒，乘以 1000
+  const date = new Date(timestamp < 10000000000 ? timestamp * 1000 : timestamp);
+  
+  // 使用 'zh-CN' 或 'en-GB' 确保 YYYY-MM-DD 格式
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 };
 
 const truncatePath = (path, maxLength) => {
@@ -473,18 +603,34 @@ h2 {
 .search-input {
   flex: 1;
   padding: 0.75rem 1rem;
-  border: 1px solid #ddd;
+  border: 1px solid #e1e8ed;
+  border-right: none;
   border-radius: 8px 0 0 8px;
-  font-size: 1rem;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+  background-color: #fff;
+}
+
+.search-input:focus {
+  border-color: var(--primary-color);
+  box-shadow: -2px 0 4px rgba(0, 206, 209, 0.1);
+  z-index: 1;
 }
 
 .search-btn {
   padding: 0.75rem 1.5rem;
   border: none;
-  background: #2196f3;
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
   color: white;
   border-radius: 0 8px 8px 0;
   cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.search-btn:hover {
+  background: linear-gradient(135deg, var(--primary-hover), var(--primary-color));
+  box-shadow: 0 2px 8px rgba(0, 206, 209, 0.3);
 }
 
 .filter-options {
@@ -495,53 +641,219 @@ h2 {
 
 .filter-select {
   padding: 0.75rem 1rem;
-  border: 1px solid #ddd;
+  border: 1px solid #e1e8ed;
   border-radius: 8px;
-  font-size: 1rem;
+  font-size: 0.9rem;
+  background-color: #fff;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.filter-select:hover {
+  border-color: var(--primary-color);
+}
+
+.filter-btn {
+  padding: 0.75rem 1rem;
+  border: 1px solid #e1e8ed;
+  background: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+}
+
+.filter-btn:hover, .filter-btn.active {
+  background: var(--primary-light);
+  border-color: var(--primary-color);
+  color: var(--primary-dark);
+  box-shadow: 0 2px 8px rgba(0, 206, 209, 0.15);
+}
+
+.tag-filter-panel {
+  background: #fff;
+  padding: 1.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 4px 20px rgba(0, 206, 209, 0.08);
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.filter-row {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+  gap: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px dashed #f0f0f0;
+}
+
+.filter-row:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.filter-label-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 140px;
+}
+
+.filter-label {
+  font-weight: 600;
+  color: var(--text-main);
+  font-size: 0.95rem;
+}
+
+.logic-select {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid #e1e8ed;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: var(--text-main);
+  background-color: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.logic-select:hover {
+  border-color: var(--primary-color);
+}
+
+.logic-label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  background: #f0f0f0;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  align-self: flex-start;
+}
+
+.tag-select-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.tag-chip {
+  padding: 0.35rem 0.85rem;
+  border-radius: 20px;
+  border: 1px solid transparent;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+}
+
+.tag-chip:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.tag-chip.selected {
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
 
 .refresh-btn {
-  padding: 0.75rem 1rem;
-  border: 1px solid #ddd;
-  background: white;
+  padding: 0.75rem;
+  border: 1px solid #e1e8ed;
+  background: #fff;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 1rem;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+
+.refresh-btn:hover {
+  background: var(--bg-main);
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+  transform: rotate(180deg);
 }
 
 /* 文件列表 */
 .files-list {
   background: white;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  /* 确保横向内容溢出时显示滚动条 */
   overflow-x: auto;
+}
+
+/* 针对文件列表单独设置滚动条样式，确保可见 */
+.files-list::-webkit-scrollbar {
+  display: block;
+  height: 8px; /* 横向滚动条高度 */
+  width: 8px;
+}
+
+.files-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.files-list::-webkit-scrollbar-thumb {
+  background-color: #c1c1c1;
+  border-radius: 4px;
+}
+
+.files-list::-webkit-scrollbar-thumb:hover {
+  background-color: #a8a8a8;
 }
 
 .files-table {
   width: 100%;
   border-collapse: collapse;
+  /* 确保表格最小宽度，触发横向滚动 */
+  min-width: 800px; 
 }
 
 .files-table th {
-  background: #f5f5f5;
-  padding: 1rem;
+  background: #f8fafd;
+  padding: 1rem 1.2rem;
   text-align: left;
   font-weight: 600;
-  color: #2c3e50;
-  border-bottom: 2px solid #e0e0e0;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .file-item {
   border-bottom: 1px solid #f0f0f0;
-  transition: background-color 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 .file-item:hover {
-  background-color: #f9f9f9;
+  background-color: var(--primary-light);
 }
 
 .file-item td {
-  padding: 1rem;
+  padding: 1rem 1.2rem;
+  color: var(--text-main);
 }
 
 .file-name {
@@ -553,6 +865,7 @@ h2 {
 .file-icon {
   font-size: 1.5rem;
   margin-right: 0.75rem;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
 }
 
 .file-text {
@@ -560,8 +873,9 @@ h2 {
 }
 
 .file-path {
-  color: #666;
-  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-family: 'Consolas', monospace;
 }
 
 .file-tags {
@@ -575,12 +889,14 @@ h2 {
   padding: 0.25rem 0.75rem;
   border-radius: 12px;
   color: white;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .add-tag-btn {
   padding: 0.25rem 0.5rem;
-  border: 1px dashed #ddd;
+  border: 1px dashed #ccc;
   background: none;
   border-radius: 4px;
   cursor: pointer;

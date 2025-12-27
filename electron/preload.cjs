@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 设置相关操作
   getSettings: () => ipcRenderer.invoke('get-settings'),
   updateSettings: (settings) => ipcRenderer.invoke('update-settings', settings),
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
 
   // 系统信息相关
   getSystemInfo: () => ipcRenderer.invoke('get-system-info'),

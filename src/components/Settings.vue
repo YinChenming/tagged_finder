@@ -71,7 +71,7 @@
           <div class="setting-control">
             <textarea 
               v-model="settings.ignorePatterns"
-              placeholder="每行一个模式，例如：\n*.tmp\n.DS_Store\nnode_modules/"
+              placeholder="每行一个模式，例如：\n*.pdf\n*.doc\n*.txt\n.* (以.开头的隐藏文件)"
               class="textarea-input"
             ></textarea>
             <div class="setting-hint">使用glob模式匹配，每行一个</div>
@@ -118,6 +118,9 @@
           <h4 class="app-name">Tagged Finder</h4>
           <p class="app-version">版本 {{ appVersion }}</p>
           <p class="app-description">高效的文件索引和标签管理工具</p>
+          <p class="app-link">
+            <a href="#" @click.prevent="openGithub">GitHub 仓库</a>
+          </p>
         </div>
         
         <div class="system-info">
@@ -238,6 +241,10 @@ const saveSettings = async () => {
   } catch (error) {
     console.error('保存设置失败:', error);
   }
+};
+
+const openGithub = async () => {
+  await window.electronAPI.openExternal('https://github.com/YinChenming/tagged_finder');
 };
 
 const restoreDefaults = () => {
@@ -481,9 +488,21 @@ input:checked + .slider:before {
 }
 
 .app-description {
-  margin: 0;
+  margin: 0 0 1rem;
   color: #999;
   font-size: 0.9rem;
+}
+
+.app-link a {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.3s ease;
+}
+
+.app-link a:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
 }
 
 .system-info {

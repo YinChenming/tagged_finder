@@ -1,89 +1,76 @@
-# TagLens | 标签透镜
+# TagLens
 
-> **重塑你的文件管理视界 | Reshape Your File Management Vision**
+> **Reshape Your File Management Vision**
 
-TagLens 是一款现代化的智能文件标签管理工具，旨在突破传统文件夹层级结构的限制，并且支持Windows与MacOS。
-通过高效的标签系统与实时文件监控技术，它为你提供了一个跨越目录的文件管理维度，让文件归类与查找变得前所未有的直观与快捷。
-支持从视图中拖动文件到PR、PS、AE、VScode等开发软件,从繁琐的文件导入操作中解放您的时间。
+TagLens is a modern, intelligent file tagging and management tool designed to break the limitations of traditional folder hierarchies. Through an efficient tagging system and real-time file monitoring, it provides a multi-dimensional way to manage files across directories, making classification and retrieval intuitive and fast.
+
 ---
 
-## 💡 核心理念 | Philosophy
+## 💡 Philosophy
 
-在传统的操作系统中，文件被囚禁在单一的文件夹路径中。然而，人类的思维是网状的——一个文件可能既属于“工作”，又属于“财务”，还属于“2023年度”。
+In traditional operating systems, files are confined to a single folder path. However, human thinking is networked—a file can be related to "Work", "Finance", and "2025" simultaneously.
 
-TagLens 致力于**打破物理路径的束缚**。我们不改变你的文件存储位置，而是为你戴上一副“透镜”，让你通过**标签（Tags）**这一更符合直觉的维度，重新审视和掌控你的数字资产。
+TagLens aims to **break the physical path constraints**. We don't change your file storage location; instead, we provide a "lens" that allows you to review and control your digital assets through **Tags**, a more intuitive dimension.
 
-## 🎯 目标人群 | Target Audience
+## 🎯 Target Audience
 
-TagLens 专为那些不满足于普通文件管理的 Power User 打造：
+TagLens is built for Power Users who demand more than basic file management:
 
-- **🎨 创意工作者**：需要管理海量素材（图片、视频、音频、字体）的设计师、剪辑师与艺术家。
-- **📚 知识管理爱好者**：拥有大量文献、笔记、电子书，需要构建知识网络的科研人员与学生。
-- **💻 开发者**：需要跨项目管理代码片段、文档、配置与资源的程序员。
-- **🗂️ 数字资产整理者**：任何希望摆脱“文件夹地狱”，追求极致效率与秩序的用户。
+- **🎨 Creatives**: Designers, editors, and artists managing massive assets (images, videos, audio, fonts).
+- **📚 Knowledge Workers**: Researchers and students building knowledge networks with documents, notes, and e-books.
+- **💻 Developers**: Programmers managing code snippets, docs, configs, and resources across projects.
+- **🗂️ Digital Organizers**: Anyone looking to escape "folder hell" and pursue ultimate efficiency and order.
 
-## 🚀 解决痛点 | Problem Solved
+## 🚀 Key Features
 
-### 1. 单一维度的局限
-**痛点**：传统文件夹强迫你将文件放入唯一的路径。想要在“项目A”和“参考资料”中都看到同一个文件？你只能复制一份。
-**TagLens 方案**：通过标签系统，文件可以同时拥有多个身份。给文件打上 #ProjectA 和 #Reference 标签，它就能同时出现在两个视图中，无需物理复制。
+- **🏷️ Smart Tagging System**: Create custom tags with colors. Tag files instantly and filter by tag combinations.
+- **👁️ Real-time Monitoring**: Automatically tracks file additions, modifications, and deletions in watched directories using `chokidar`.
+- **⚡ High-Performance Indexing**: Built-in `better-sqlite3` database handles tens of thousands of file records with millisecond-level query response.
+- **🖱️ Drag & Drop Support**: Seamlessly drag files from TagLens to other applications (Finder, Explorer, VS Code, etc.) with OS-level integration.
+- **📄 File Management**: Add individual files or entire directories to the watch list. Virtual folder support for scattered file management.
+- **🖥️ Cross-Platform**: Built with Electron and Vue 3, providing a consistent and smooth experience on Windows, macOS, and Linux.
 
-### 2. 检索效率低下
-**痛点**：忘记文件具体放在哪一层深层目录中？系统自带搜索往往缓慢且结果杂乱。
-**TagLens 方案**：基于 SQLite 的高性能索引，结合标签组合过滤，助你瞬间定位目标。告别漫长的搜索等待。
-
-### 3. 资源分散
-**痛点**：相关文件散落在 D 盘、E 盘、下载文件夹等不同位置，难以统一管理。
-**TagLens 方案**：TagLens 作为一个虚拟层，将散落在不同磁盘、不同目录的相关文件，通过标签聚合成统一的视图。
-
-## ✨ 功能特性 | Features
-
-- **🏷️ 智能标签系统**：创建、管理自定义标签，支持颜色标记，构建你的专属文件分类体系。
-- **👁️ 实时目录监控**：基于 `chokidar` 的高性能文件监听，自动追踪文件的添加、修改与删除，保持索引实时同步。
-- **⚡ 极速索引**：内置 `better-sqlite3` 数据库，轻松处理数万级文件索引，查询响应毫秒级。
-- **🖥️ 跨平台体验**：基于 Electron 与 Vue 3 构建，完美支持 Windows、macOS 与 Linux，提供一致的流畅体验。
-
-## 🛠️ 技术栈 | Tech Stack
+## 🛠️ Tech Stack
 
 - **Core**: Electron, Vue 3, Vite
 - **Data**: Better-SQLite3
 - **Watcher**: Chokidar
 - **UI**: Modern CSS3, Component-based Architecture
 
-## 📦 快速开始 | Getting Started
+## 📦 Getting Started
 
-### 环境要求
+### Prerequisites
 - Node.js v16+
 - npm / yarn / pnpm
 
-### 安装与运行
+### Installation & Run
 
-1. **克隆项目**
+1. **Clone the repository**
    ```bash
    git clone https://github.com/your-repo/taglens.git
    cd taglens
    ```
 
-2. **安装依赖**
+2. **Install dependencies**
    ```bash
    npm install
    ```
 
-3. **重建原生模块** (确保数据库驱动兼容)
+3. **Rebuild native modules** (Essential for database compatibility)
    ```bash
    npm run rebuild-electron
    ```
 
-4. **启动开发模式**
+4. **Start development mode**
    ```bash
    npm run electron:dev
    ```
 
-5. **构建发布**
+5. **Build for production**
    ```bash
    npm run electron:build
    ```
 
----
+## 📄 License
 
-License: MIT
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
